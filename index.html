@@ -325,7 +325,7 @@ function route(db, req) {
 <script>
 'use strict';
 const FORCE_DEMO = false;
-const API_URL = '';           // only if this page is hosted outside Apps Script (e.g. GitHub Pages): paste the web app /exec URL here
+const API_URL = 'https://script.google.com/macros/s/AKfycbyvb8u_Z1fL8WXrj3fit5R2d-xRjp2FkAs2V2eCwNNEaApBa1VvWrwIjnxfANiE62L4/exec';           // only if this page is hosted outside Apps Script (e.g. GitHub Pages): paste the web app /exec URL here
 const SEED_ITEMS = [];
 const MODE = FORCE_DEMO ? 'demo' : ((typeof google !== 'undefined' && google.script && google.script.run) ? 'gas' : (API_URL ? 'fetch' : 'demo'));
 const CATS = ['Equipment','Reagent','Plastic consumable','Accessory','Spare parts','Licensed software'];
