@@ -933,7 +933,7 @@ function renderPre() {
   ${s.status === 'Open' && ST.user.role === 'logistics' ? '<button class="pri" id="pSub">Sign &amp; submit</button>' : ''}
   ${enc && s.status === 'Open' ? '<span class="badge b-warn">Waiting for logistics to submit</span>' : ''}
   ${enc && s.status === 'Submitted' ? '<button id="pRe">↩ Reopen for logistics</button><button class="pri" id="pAp">Apply to item master</button>' : ''}
-  ${enc && s.status === 'Open' ? '<button id="pLk" title="Re-read mother/baby links from the item master">↻ Refresh baby links</button>' : ''}${enc ? '<button id="pPr">Print this brand</button><button id="pPrA">Print all brands</button>' : ''}</div>
+  ${enc && s.status === 'Open' ? '<button id="pLk" title="Re-read mother/baby links from the item master">↻ Refresh baby links</button>' : ''}<button id="pPr">Print this brand</button><button id="pPrA">Print all brands</button></div>
   ${s.status === 'Submitted' && !enc ? '<div class="note">Submitted and signed. Thank you.</div>' : ''}
   ${s.status === 'Applied' ? '<div class="note">This pre-count has been applied to the item master.</div>' : ''}
   <div class="row" style="margin:10px 0"><select id="pB">${bs.map(b => `<option ${b === PRE.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><input id="pQ" placeholder="Search PN / description / serial / lot" value="${esc(PRE.q)}" style="min-width:240px"><span class="sp"></span>${ed ? '<button id="pAdd">+ Add serial / lot row</button><button id="pNew">+ New item not on the list</button>' : ''}</div>
@@ -1012,9 +1012,23 @@ function printPre(all) {
   const kd = {}; S.lines.filter(isBaby).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
   const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)))
     .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
-  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td>${esc(l.serial)}</td><td>${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>${isBaby(l) ? `<td colspan="2">${l.babyOk === 'Y' ? '✓ present' : (l.babyOk === 'M' ? 'NOT PRESENT (0)' : '')}</td>` : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}${N(l.cL) != null && l.looseUom ? ' ' + esc(l.looseUom) : ''}</td>`}<td>${l.isExtra ? 'NEW ITEM ' : ''}${esc(l.remarks)}${chgOf(l).length ? ` <b>CHANGED (was ${chgOf(l).map(k => esc(origOf(l)[k] || '—')).join(' / ')}):</b> ${esc(l.changeReason)}` : ''}</td></tr>`;
-  doPrint(`<div class="sheet"><h2>Logistics pre-count — ${esc(s.name)}</h2><table class="ps"><thead><tr><th>Brand</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial</th><th>Lot</th><th>Expiry</th><th>Location</th><th>Full</th><th>Loose</th><th>Remarks</th></tr></thead><tbody>${ls.map(row).join('')}</tbody></table>
-  <div class="sg"><div>${sg && sg.image ? `<img src="${sg.image}">` : ''}Logistics: ${esc(sg ? sg.name : '')} ${sg ? esc(String(sg.signedAt || '').slice(0, 10)) : ''}</div><div>Signature (wet ink)</div></div></div>`, 'pre-count');
+  let nn = 0, prev = null, rows = '';
+  const brands = [...new Set(ls.map(l => l.brand))];
+  ls.forEach((l, i) => {
+    const baby = isBaby(l); if (!baby) nn++;
+    if (all && l.brand !== prev) { rows += `<tr class="grp"><td colspan="12">BRAND: ${esc(l.brand)}</td></tr>`; prev = l.brand; }
+    const mom = !baby && ls[i + 1] && isBaby(ls[i + 1]) && ls[i + 1].motherId === l.itemId;
+    const rem = (l.isExtra ? 'NEW ITEM ' : '') + esc(l.remarks) + (chgOf(l).length ? ` <b>CHANGED (was ${chgOf(l).map(k => esc(origOf(l)[k] || '—')).join(' / ')}):</b> ${esc(l.changeReason)}` : '');
+    const qty = baby ? `<td colspan="3" style="font-size:7.5pt">${l.babyOk === 'Y' ? '☑ present' : (l.babyOk === 'M' ? '<b>USED IN MOTHER — NOT PRESENT (0)</b>' : '☐ present &nbsp; ☐ used in mother (0)')}</td>`
+      : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}</td><td>${N(l.cL) != null ? esc(l.looseUom || '') : esc(l.looseUom || '')}</td>`;
+    rows += `<tr${baby ? ' class="bb"' : (mom ? ' class="mom"' : '')}><td>${baby ? '↳' : nn}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${baby ? '↳ ' : ''}${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td class="ser">${esc([l.serial, l.lot].filter(Boolean).join(' / '))}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}</td>${qty}<td>${rem}</td></tr>`;
+  });
+  const W = [3,6,9,22,5,13,7,8,5,5,6,11], line = '_______________________';
+  doPrint(`<section class="sheet"><table class="ps"><colgroup>${W.map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead><tr><td class="ttl" colspan="12"><small>RAINPHIL INC. · PHYSICAL INVENTORY</small>PRE-COUNT SHEET</td></tr>
+  <tr><td class="inf" colspan="12"><b>${esc(s.name)}</b> · Session ${esc(s.id)} · Date ${esc(s.date)} · <b>Brand: ${esc(brands.join(', ') || '—')}</b> · Type: Eqpt=Equipment, Rgt=Reagent, Cons=Plastic consumable, Accy=Accessory, Parts=Spare parts, Lic-SW=Licensed software · ↳ = baby part under its mother. Changed PN / description / UOM: reason in Remarks.</td></tr>
+  <tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial / Lot</th><th>Expiry</th><th>Location</th><th>Full</th><th>Loose</th><th>Loose in</th><th>Remarks / reason</th></tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr><td class="sf" colspan="12">Pre-counted by (Logistics) — signature on EVERY page: ${line} &nbsp; Date: ____________</td></tr></tfoot></table>
+  <div class="sg"><div>${sg && sg.image ? `<img src="${sg.image}">` : ''}<b>PRE-COUNTED BY (LOGISTICS)</b><br>${esc(sg ? sg.name : '')} ${sg ? esc(String(sg.signedAt || '').slice(0, 10)) : ''} Full name · signature · date</div><div><b>REVIEWED BY</b><br>Full name · signature · date</div></div></section>`, 'pre-count');
 }
 
 /* ---------- printing ---------- */
