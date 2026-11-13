@@ -133,6 +133,11 @@ function core(db, req) {
 function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
 function numOrBlank(v) { if (v === '' || v === null || v === undefined) return ''; var n = Number(v); return isNaN(n) ? '' : n; }
 function toJson(v, d) { if (typeof v !== 'string') return v == null ? d : v; try { return JSON.parse(v); } catch (e) { return d; } }
+function preDone(db, sid) {
+  var m = {};
+  db.all('Signatures').forEach(function (x) { if (String(x.sessionId) === String(sid) && x.role === 'logistics') m[String(x.brand || '*')] = true; });
+  return m;
+}
 function sessionOut(s) {
   return {id:s.id, name:s.name, date:s.date, status:s.status, brands:toJson(s.brands, []), includeExpired:s.includeExpired === true || s.includeExpired === 'TRUE' || s.includeExpired === 'true' || s.includeExpired === 'Y',
           kind:s.kind === 'pre' ? 'pre' : 'count', preId:s.preId || '', notes:s.notes || '', assign:toJson(s.assign, {}), createdBy:s.createdBy, createdAt:s.createdAt, returnNote:s.returnNote || '', lineCount:Number(s.lineCount) || 0};
@@ -267,8 +272,10 @@ function route(db, req) {
       if (u.role === 'logistics') {
         if (!isPre || s3.status !== 'Open') throw new Error('This pre-count is closed');
         var existing = {}; db.lines(d.id).forEach(function (l) { existing[l.lineId] = l; });
+        var doneB = preDone(db, d.id);
         ls = (d.lines || []).map(function (l) {
           var ex = existing[l.lineId];
+          if (doneB[String((ex || l).brand)] || doneB['*']) throw new Error('Brand ' + (ex || l).brand + ' is already submitted. Ask the encoder to reopen it.');
           if (ex) { ['cF', 'cL', 'serial', 'lot', 'expiry', 'location', 'remarks', 'babyOk', 'looseUom', 'category', 'desc', 'uom', 'pn', 'changeReason'].forEach(function (k) { if (l[k] !== undefined) ex[k] = l[k]; }); return ex; }
           if (l.isExtra !== 'Y' || String(l.lineId).indexOf(d.id + '-X') !== 0) throw new Error('Not allowed');
           var nl = {orig:'', changeReason:'', itemId:'', section:'Active', sysQty:'', unitPrice:'', isExtra:'Y', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', motherId:'', babyOk:'', storage:''};
@@ -336,8 +343,8 @@ function route(db, req) {
     case 'setStatus': {
       var s4 = findSession(db, d.id), from = s4.status, to = d.status, ok = false;
       if (s4.kind === 'pre') {
-        if (u.role !== 'encoder' || from !== 'Submitted' || to !== 'Open') throw new Error('Cannot change a pre-count from ' + from + ' to ' + to);
-        db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id); });
+        if (u.role !== 'encoder' || (from !== 'Submitted' && !(from === 'Open' && d.brand)) || to !== 'Open') throw new Error('Cannot change a pre-count from ' + from + ' to ' + to);
+        db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id) && (!d.brand || String(x.brand || '') === String(d.brand) || !String(x.brand || '')); });
         s4.status = 'Open'; db.upsert('Sessions', 'id', [s4]); log(db, u, 'reopenPre', d.id); return sessionOut(s4);
       }
       if (u.role === 'encoder') ok = (ENC_FLOW[from] || []).indexOf(to) >= 0;
@@ -380,15 +387,20 @@ function route(db, req) {
       if (String(d.image).length > 45000) throw new Error('Signature image is too large. Clear and sign again.');
       if (u.role === 'logistics') {
         if (s5.kind !== 'pre' || s5.status !== 'Open') throw new Error('This pre-count is not open for signing');
-        var noWhy = db.lines(d.id).filter(function (l) { return changedFields(l).length && !String(l.changeReason || '').trim(); });
+        var pbr = String(d.brand || ''), allL = db.lines(d.id), brs = [];
+        allL.forEach(function (l) { if (brs.indexOf(l.brand) < 0) brs.push(l.brand); });
+        if (!pbr || brs.indexOf(pbr) < 0) throw new Error('Choose the brand you are submitting');
+        if (preDone(db, d.id)[pbr]) throw new Error(pbr + ' is already submitted');
+        var noWhy = allL.filter(function (l) { return l.brand === pbr && changedFields(l).length && !String(l.changeReason || '').trim(); });
         if (noWhy.length) throw new Error('State a reason for the change on ' + noWhy.length + ' line(s): ' + noWhy.slice(0, 3).map(function (l) { return l.pn; }).join(', ') + (noWhy.length > 3 ? '…' : ''));
-        s5.status = 'Submitted';
+        var dn = preDone(db, d.id); dn[pbr] = true;
+        s5.status = brs.every(function (b) { return dn[b]; }) ? 'Submitted' : 'Open';
       }
       else if (s5.kind === 'pre') throw new Error('Only logistics signs a pre-count');
       else if (u.role === 'verifier' && s5.status === 'Verification') s5.status = 'Approval';
       else if (u.role === 'approver' && s5.status === 'Approval') s5.status = 'Approved';
       else throw new Error('This count is not waiting for a ' + u.role + ' signature (status: ' + s5.status + ')');
-      db.append('Signatures', [{sessionId:d.id, role:u.role, name:u.name, signedAt:db.now(), image:d.image}]);
+      db.append('Signatures', [{sessionId:d.id, role:u.role, name:u.name, signedAt:db.now(), image:d.image, brand:u.role === 'logistics' ? String(d.brand) : ''}]);
       db.upsert('Sessions', 'id', [s5]);
       log(db, u, 'sign', d.id + ' as ' + u.role);
       return sessionOut(s5);
@@ -902,10 +914,10 @@ function soCard() {
   return `<div class="card"><h3>Counted by / Encoded by — sign in the app</h3><p class="small mut" style="margin:0 0 8px">Each person types their full name and draws their signature (the wet-ink signature on the paper sheet is still required). Optional but recommended before verification.</p>
   <div class="tw" style="max-height:30vh"><table class="t"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th><th>Encoded by</th></tr></thead><tbody>${bs.map(b => `<tr><td><b>${esc(b)}</b></td>${cell(b, 'counter', 'c')}${cell(b, 'checker', 'k')}${cell(b, 'encoder', 'e')}</tr>`).join('')}</tbody></table></div></div>`;
 }
-function signModal(so) {
+function signModal(so, preBrand) {
   const role = ST.user.role;
   const cur = so ? (ST.S.session.assign[so.brand] || {})[{counter:'c', checker:'k', encoder:'e'}[so.role]] || '' : '';
-  modal(`<h2>${so ? 'Sign as ' + (so.role === 'encoder' ? 'Encoder' : so.role === 'counter' ? 'Counter' : 'Checker') + ' — ' + esc(so.brand) : 'Sign as ' + role}</h2><p class="mut small">${esc(ST.S.session.name)} — ${so ? 'type your full name and draw your signature.' : 'draw your signature and enter your PIN to confirm.'}</p>
+  modal(`<h2>${so ? 'Sign as ' + (so.role === 'encoder' ? 'Encoder' : so.role === 'counter' ? 'Counter' : 'Checker') + ' — ' + esc(so.brand) : 'Sign &amp; submit' + (preBrand ? ' — ' + esc(preBrand) : ' as ' + role)}</h2><p class="mut small">${esc(ST.S.session.name)} — ${so ? 'type your full name and draw your signature.' : 'draw your signature and enter your PIN to confirm.'}</p>
   ${so ? `<div class="row" style="margin-bottom:8px"><label>Full name</label><input id="soN" value="${esc(cur)}" style="flex:1"></div>` : ''}
   <canvas class="sig" id="cv" width="420" height="150"></canvas><div class="small mut">Draw with mouse, finger or pen.</div>
   <div class="row" style="margin-top:10px">${so ? '' : '<label>PIN</label><input id="sgP" type="password" inputmode="numeric" maxlength="8" style="width:120px">'}<button id="sgC">Clear</button><span class="sp"></span><button id="sgX">Cancel</button><button class="pri" id="sgOK">Sign</button></div>`);
@@ -918,34 +930,36 @@ function signModal(so) {
   $('#sgOK').onclick = async () => {
     if (!any) return toast('Please draw your signature', true);
     const tmp = document.createElement('canvas'); tmp.width = 300; tmp.height = 107; const t = tmp.getContext('2d'); t.fillStyle = '#fff'; t.fillRect(0, 0, 300, 107); t.drawImage(cv, 0, 0, 300, 107);
-    try { const r = so ? await run('signOff', {id:ST.S.session.id, brand:so.brand, role:so.role, name:$('#soN').value, image:tmp.toDataURL('image/png')}) : await run('sign', {id:ST.S.session.id, pin:$('#sgP').value, image:tmp.toDataURL('image/png')}); closeModal(); const g = await run('getSession', {id:r.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast('Signed'); } catch (e) {}
+    try { const r = so ? await run('signOff', {id:ST.S.session.id, brand:so.brand, role:so.role, name:$('#soN').value, image:tmp.toDataURL('image/png')}) : await run('sign', {id:ST.S.session.id, brand:preBrand || '', pin:$('#sgP').value, image:tmp.toDataURL('image/png')}); closeModal(); const g = await run('getSession', {id:r.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast('Signed'); } catch (e) {}
   };
 }
 
 
 /* ---------- logistics pre-count ---------- */
 const PRE = {brand:'', q:''};
-const preOpen = () => { const s = ST.S.session; return (ST.user.role === 'logistics' && s.status === 'Open') || (isEnc() && (s.status === 'Open' || s.status === 'Submitted')); };
+const brandDone = b => ST.S.session.status === 'Submitted' || (ST.S.sigs || []).some(x => x.role === 'logistics' && (x.brand === b || !x.brand));
+const preBrands = () => [...new Set(ST.S.lines.map(l => l.brand))].sort();
+const preOpen = () => { const s = ST.S.session; return (ST.user.role === 'logistics' && s.status === 'Open' && !brandDone(PRE.brand)) || (isEnc() && (s.status === 'Open' || s.status === 'Submitted')); };
 const isoD = v => v === '' || /^\d{4}-\d\d-\d\d$/.test(String(v || ''));
 function renderPre() {
   const S = ST.S, s = S.session, ed = preOpen(), enc = isEnc(), bs = [...new Set(S.lines.map(l => l.brand))].sort();
   if (!PRE.brand || bs.indexOf(PRE.brand) < 0) PRE.brand = bs[0] || '';
   $('#main').innerHTML = `<div class="row"><button id="bk">← Back</button><h2 style="margin:0">${esc(s.name)}</h2>${stBadge(s.status)}<span class="mut small">Pre-count · ${esc(s.date)}</span><span class="sp"></span><span class="small mut" id="dirtyTag"></span>
-  ${s.status === 'Open' && ST.user.role === 'logistics' ? '<button class="pri" id="pSub">Sign &amp; submit</button>' : ''}
-  ${enc && s.status === 'Open' ? '<span class="badge b-warn">Waiting for logistics to submit</span>' : ''}
-  ${enc && s.status === 'Submitted' ? '<button id="pRe">↩ Reopen for logistics</button><button class="pri" id="pAp">Apply to item master</button>' : ''}
+  ${s.status === 'Open' && ST.user.role === 'logistics' && !brandDone(PRE.brand) ? `<button class="pri" id="pSub">Sign &amp; submit ${esc(PRE.brand)}</button>` : ''}
+  ${enc && s.status === 'Open' ? `<span class="badge b-warn">${bs.filter(brandDone).length} of ${bs.length} brands submitted</span>` : ''}
+  ${enc && brandDone(PRE.brand) && s.status !== 'Applied' ? `<button id="pRe">↩ Reopen ${esc(PRE.brand)} for logistics</button>` : ''}${enc && s.status === 'Submitted' ? '<button class="pri" id="pAp">Apply to item master</button>' : ''}
   ${enc && s.status === 'Open' ? '<button id="pLk" title="Re-read mother/baby links from the item master">↻ Refresh baby links</button>' : ''}<button id="pPr">Print this brand</button><button id="pPrA">Print all brands</button></div>
-  ${s.status === 'Submitted' && !enc ? '<div class="note">Submitted and signed. Thank you.</div>' : ''}
+  ${!enc && s.status !== 'Applied' ? `<div class="note">${brandDone(PRE.brand) ? '✓ <b>' + esc(PRE.brand) + '</b> is submitted and signed.' : 'Submit one brand at a time: pick the brand, finish it, then press “Sign &amp; submit”.'} Brands submitted: ${bs.filter(brandDone).length} of ${bs.length}${bs.filter(b => !brandDone(b)).length ? ' · still to do: ' + bs.filter(b => !brandDone(b)).map(esc).join(', ') : ''}.</div>` : ''}
   ${s.status === 'Applied' ? '<div class="note">This pre-count has been applied to the item master.</div>' : ''}
-  <div class="row" style="margin:10px 0"><select id="pB">${bs.map(b => `<option ${b === PRE.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><input id="pQ" placeholder="Search PN / description / serial / lot" value="${esc(PRE.q)}" style="min-width:240px"><span class="sp"></span>${ed ? '<button id="pAdd">+ Add serial / lot row</button><button id="pNew">+ New item not on the list</button>' : ''}</div>
-  <div class="tw" style="max-height:70vh"><table class="t pre"><thead><tr><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial no.</th><th>Lot no.</th><th>Expiry</th><th>Location</th><th class="num">Full<div class="small mut">sealed UOM</div></th><th class="num">Loose<div class="small mut">qty</div></th><th>Loose in<div class="small mut">unit</div></th><th>Remarks</th><th>Reason if you changed Type / PN / Description / UOM</th></tr></thead><tbody id="pBody"></tbody></table></div><datalist id="uomL2">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist><datalist id="luL">${['pc','tests','vial','bottle','box','kit','pack','unit','ml','set'].map(u => `<option>${u}</option>`).join('')}</datalist>
+  <div class="row" style="margin:10px 0"><select id="pB">${bs.map(b => `<option value="${esc(b)}" ${b === PRE.brand ? 'selected' : ''}>${brandDone(b) ? '✓ ' : ''}${esc(b)}</option>`).join('')}</select><input id="pQ" placeholder="Search PN / description / serial / lot" value="${esc(PRE.q)}" style="min-width:240px"><span class="sp"></span>${ed ? '<button id="pAdd">+ Add serial / lot row</button><button id="pNew">+ New item not on the list</button>' : ''}</div>
+  <div class="tw" style="max-height:70vh"><table class="t pre"><thead><tr><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial no.</th><th>Lot no.</th><th>Expiry</th><th>Location</th><th class="num">Full<div class="small mut">sealed UOM</div></th><th class="num">Loose<div class="small mut">qty</div></th><th>Loose in<div class="small mut">unit</div></th><th>Remarks</th><th>Reason if you changed Type / PN / Description / UOM</th></tr></thead><tbody id="pBody"></tbody></table></div><datalist id="uomL2">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist><datalist id="luL">${['pc','plate','rack','tests','vial','bottle','box','kit','pack','unit','ml','set'].map(u => `<option>${u}</option>`).join('')}</datalist>
   <p class="small mut">Full = sealed units (box, kit, bottle…). Loose = loose pieces inside an opened pack. Change serial, lot, expiry or location if the label differs. “+ Add serial / lot row” adds another lot of the same part; “+ New item” is for items not on the list.</p>`;
   $('#bk').onclick = async () => { if (await leaveOk()) { ST.S = null; render(); } };
-  $('#pB').onchange = e => { PRE.brand = e.target.value; fillPre(); };
+  $('#pB').onchange = e => { PRE.brand = e.target.value; renderPre(); };
   $('#pQ').oninput = e => { PRE.q = e.target.value; fillPre(); };
-  if ($('#pSub')) $('#pSub').onclick = async () => { if (!(await leaveOk())) return; signModal(); };
+  if ($('#pSub')) $('#pSub').onclick = async () => { if (!(await leaveOk())) return; signModal(null, PRE.brand); };
   if ($('#pAdd')) $('#pAdd').onclick = () => preAddModal(false); if ($('#pNew')) $('#pNew').onclick = () => preAddModal(true);
-  if ($('#pRe')) $('#pRe').onclick = async () => { if (!confirm('Reopen for logistics? Their signature is cleared.')) return; try { const r = await run('setStatus', {id:s.id, status:'Open'}); const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderPre(); } catch (e) {} };
+  if ($('#pRe')) $('#pRe').onclick = async () => { if (!confirm('Reopen ' + PRE.brand + ' for logistics? Their signature for this brand is cleared.')) return; try { const r = await run('setStatus', {id:s.id, status:'Open', brand:PRE.brand}); const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderPre(); } catch (e) {} };
   if ($('#pAp')) $('#pAp').onclick = async () => { if (!confirm('Apply to item master?\nNew items are added and changed serial / lot / expiry / location are updated. System quantities are not changed.')) return; try { const r = await run('applyPre', {id:s.id}); toast(`Applied: ${r.added} new, ${r.updated} updated`); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderPre(); } catch (e) {} };
   if ($('#pPr')) $('#pPr').onclick = () => printPre(false); if ($('#pPrA')) $('#pPrA').onclick = () => printPre(true);
   if ($('#pLk')) $('#pLk').onclick = refreshLinks;
