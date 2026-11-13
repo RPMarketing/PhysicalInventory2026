@@ -70,6 +70,37 @@ td.st{white-space:nowrap;font-size:12px;font-weight:600}.st-m{color:var(--ok)}.s
 table.pre input{field-size:auto;field-sizing:content;min-width:70px;max-width:300px}table.pre td{white-space:nowrap}table.pre td.wr{white-space:normal;min-width:160px}table.pre input.q{width:70px;min-width:70px}
 table.pre tr.xr td{background:#fffbe9}table.pre tr.chg td{background:#eef6ff}
 @media(max-width:700px){main{padding:10px}header.top{flex-wrap:wrap;gap:6px}}
+/* ---- phone / tablet ---- */
+html{-webkit-text-size-adjust:100%}button,select,input,summary{touch-action:manipulation}
+@media(max-width:1024px){
+ main{padding:12px}header.top{flex-wrap:wrap;gap:8px;padding:8px 12px}header.top nav{order:3;flex:1 0 100%;overflow-x:auto;white-space:nowrap}
+ input,select,textarea{font-size:16px!important}button{min-height:40px}
+ .tabs{overflow-x:auto;white-space:nowrap}.tabs button{flex:0 0 auto}
+ #modal{padding:8px;align-items:flex-start;overflow:auto}#modal .box{width:100%;max-height:none;padding:14px}
+ .fg{grid-template-columns:1fr 1fr}.cards{grid-template-columns:repeat(2,1fr)}
+ .login{margin:6vh auto;padding:0 12px}.who{font-size:12px}
+ #pill{top:auto;bottom:14px}
+}
+@media(max-width:640px){
+ .fg{grid-template-columns:1fr}
+ header.top h1{font-size:14px}
+ .row>input,.row>select{flex:1 1 140px;min-width:0}
+}
+@media(max-width:900px){
+ /* pre-count as cards */
+ table.pre,table.pre tbody,table.pre tr,table.pre td{display:block;width:auto}
+ table.pre thead{display:none}
+ .tw:has(table.pre){border:0;background:transparent;overflow:visible;max-height:none!important}
+ table.pre tr{border:1px solid var(--line);border-radius:12px;margin:0 0 12px;padding:8px 10px;background:#fff}
+ table.pre tr.xr{background:#fffbe9}table.pre tr.chg{background:#eef6ff}
+ table.pre td{display:flex;align-items:center;gap:8px;padding:3px 0;border:0;white-space:normal!important;min-width:0!important}
+ table.pre td::before{content:attr(data-label);flex:0 0 86px;font-size:12px;color:var(--mut)}
+ table.pre td input,table.pre td select{flex:1;min-width:0!important;max-width:none!important;width:auto!important}
+ table.pre td.wr{min-width:0!important}
+ table.pre td[colspan]{display:flex}
+}
+@media(min-width:641px) and (max-width:900px){table.pre tr{display:grid;grid-template-columns:1fr 1fr;column-gap:18px}table.pre td.wr,table.pre td[colspan]{grid-column:1/-1}}
+
 #pvBar{position:fixed;top:0;left:0;right:0;height:50px;background:#1d2433;color:#fff;display:none;align-items:center;gap:10px;padding:0 16px;z-index:70}
 #pvBar b{flex:1;font-weight:600}#pvBar button{background:#fff}#pvBar button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
 body.preview{overflow:hidden}
@@ -87,7 +118,7 @@ body.preview .sheet{background:#fff;width:1120px;max-width:none;margin:0 auto 18
    Pure logic: authentication, roles, status flow, signatures. Storage is supplied by an adapter `db`. */
 var ITEM_FIELDS = ['id','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','sysQty','asOf','unitPrice','notes','section','source','flags','active','motherId'];
 var LINE_FIELDS = ['lineId','itemId','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','section','sysQty','unitPrice','isExtra','cF','cL','kF','kL','rF','rL','recountBy','reason','remarks','motherId','babyOk','orig','changeReason'];
-var SESSION_FIELDS = ['id','name','date','status','brands','includeExpired','notes','assign','createdBy','createdAt','returnNote','lineCount','kind'];
+var SESSION_FIELDS = ['id','name','date','status','brands','includeExpired','notes','assign','createdBy','createdAt','returnNote','lineCount','kind','preId'];
 var USER_FIELDS = ['name','role','salt','pinHash','active'];
 var SIG_FIELDS = ['sessionId','role','name','signedAt','image','brand'];
 var LOG_FIELDS = ['time','user','action','detail'];
@@ -104,7 +135,7 @@ function numOrBlank(v) { if (v === '' || v === null || v === undefined) return '
 function toJson(v, d) { if (typeof v !== 'string') return v == null ? d : v; try { return JSON.parse(v); } catch (e) { return d; } }
 function sessionOut(s) {
   return {id:s.id, name:s.name, date:s.date, status:s.status, brands:toJson(s.brands, []), includeExpired:s.includeExpired === true || s.includeExpired === 'TRUE' || s.includeExpired === 'true' || s.includeExpired === 'Y',
-          kind:s.kind === 'pre' ? 'pre' : 'count', notes:s.notes || '', assign:toJson(s.assign, {}), createdBy:s.createdBy, createdAt:s.createdAt, returnNote:s.returnNote || '', lineCount:Number(s.lineCount) || 0};
+          kind:s.kind === 'pre' ? 'pre' : 'count', preId:s.preId || '', notes:s.notes || '', assign:toJson(s.assign, {}), createdBy:s.createdBy, createdAt:s.createdAt, returnNote:s.returnNote || '', lineCount:Number(s.lineCount) || 0};
 }
 function findSession(db, id) {
   var all = db.all('Sessions');
@@ -225,6 +256,7 @@ function route(db, req) {
       if (EDITABLE.indexOf(s2.status) < 0) throw new Error('Session is locked (' + s2.status + ')');
       if (d.assign !== undefined) s2.assign = JSON.stringify(d.assign);
       if (d.notes !== undefined) s2.notes = d.notes;
+      if (d.preId !== undefined) s2.preId = d.preId;
       db.upsert('Sessions', 'id', [s2]);
       return sessionOut(s2);
     }
@@ -483,7 +515,7 @@ async function refreshAll() {
   try {
     const sid = ST.S && ST.S.session.id, v = ST.view, tab = ST.S && ST.S.tab;
     await loadAll(true);
-    if (sid) { const g = await run('getSession', {id:sid}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); } else go(v);
+    if (sid) { const g = await run('getSession', {id:sid}); setSession(g, ST.S); if (g.session.kind !== 'pre') await loadPre(); g.session.kind === 'pre' ? renderPre() : renderSession(); } else go(v);
     toast('Refreshed');
   } catch (e) {}
 }
@@ -548,15 +580,22 @@ function newSessionModal() {
 }
 
 /* ---------- session view ---------- */
+async function loadPre() {
+  const S = ST.S; if (!S) return; S.pre = null;
+  const pid = S.session.preId; if (!pid || S.session.kind === 'pre') return;
+  try { const g = await run('getSession', {id:pid}, true); S.pre = {name:g.session.name, status:g.session.status, by:{}}; g.lines.map(normLine).forEach(l => { if (l.itemId) S.pre.by[l.itemId] = l; }); } catch (e) { S.pre = null; }
+}
+const preTot = l => { const p = ST.S && ST.S.pre && ST.S.pre.by[l.itemId]; return p && N(p.cF) != null ? tot(p.cF, p.cL, N(p.packSize) || 0) : null; };
 async function openSession(id) {
   const r = await run('getSession', {id});
   ST.dirty.clear(); setSession(r, ST.S && ST.S.session.id === id ? ST.S : null);
   if (r.session.kind === 'pre') return renderPre();
+  await loadPre();
   renderSession();
 }
 function setSession(r, prev) {
   const lines = r.lines.map(normLine);
-  ST.S = {session:r.session, lines, map:Object.fromEntries(lines.map(l => [l.lineId, l])), sigs:r.sigs, itemIds:new Set(lines.map(l => l.itemId).filter(Boolean)), tab:prev ? prev.tab : 'print', brand:prev ? prev.brand : '', f:prev ? prev.f : 'all', q:prev ? prev.q : '', rf:prev ? prev.rf : 'recount'};
+  ST.S = {session:r.session, pre:prev ? prev.pre : null, lines, map:Object.fromEntries(lines.map(l => [l.lineId, l])), sigs:r.sigs, itemIds:new Set(lines.map(l => l.itemId).filter(Boolean)), tab:prev ? prev.tab : 'print', brand:prev ? prev.brand : '', f:prev ? prev.f : 'all', q:prev ? prev.q : '', rf:prev ? prev.rf : 'recount'};
   const i = ST.sessions.findIndex(s => s.id === r.session.id); if (i >= 0) ST.sessions[i] = r.session;
   const bs = brandsOf(); if (!ST.S.brand || bs.indexOf(ST.S.brand) < 0) ST.S.brand = bs[0] || '';
 }
@@ -650,6 +689,7 @@ function tabPrint() {
   </tbody></table></div>
   <div style="margin-top:10px"><label class="small mut">Notes (cut-off / scope)</label><br><textarea id="mNotes" rows="2" style="width:100%" ${ed ? '' : 'disabled'}>${esc(s.notes)}</textarea></div>
   ${ed ? '<div class="row" style="margin-top:8px"><button id="saveMeta">Save names & notes</button></div>' : ''}</div>
+  <div class="card"><h3>Compare with logistics pre-count</h3><p class="small mut" style="margin:0 0 8px">Pick the submitted pre-count. The Compare tab then shows its quantity next to the counter and checker counts and marks lines that differ.</p><select id="prSel" ${canEdit() ? '' : 'disabled'}><option value="">— none —</option>${ST.sessions.filter(x => x.kind === 'pre' && ['Submitted', 'Applied'].includes(x.status)).map(x => `<option value="${esc(x.id)}" ${s.preId === x.id ? 'selected' : ''}>${esc(x.name)} (${esc(x.status)})</option>`).join('')}</select></div>
   <div class="card"><h3>Mother / baby links</h3><p class="small mut" style="margin:0 0 8px">Links are copied when a session is created. If you set or changed “Baby part of” on items afterwards, refresh here (only before counting is encoded). Both the mother and its babies must be in this session.</p>${canEdit() && ['Draft','Counting'].includes(s.status) ? '<button id="rfL">↻ Refresh baby links</button>' : ''}</div>
   <div class="card"><h3>Print</h3><div class="row"><label class="small mut">Brand</label><select id="pb"><option value="">All brands</option>${bs.map(b => `<option>${esc(b)}</option>`).join('')}</select></div>
   <div class="row" style="margin-top:10px">
@@ -668,6 +708,7 @@ function tabPrint() {
   };
   const pb = () => $('#pb').value;
   if ($('#rfL')) $('#rfL').onclick = refreshLinks;
+  if ($('#prSel')) $('#prSel').onchange = async e => { try { const r = await run('saveMeta', {id:s.id, preId:e.target.value}); S.session = r; await loadPre(); toast(e.target.value ? 'Pre-count linked — see the Compare tab' : 'Pre-count unlinked'); } catch (x) {} };
   $('#pBl').onclick = () => printSheets({kind:'blank', brand:pb()});
   $('#pPre').onclick = () => printSheets({kind:'pre', brand:pb()});
   $('#pCo').onclick = () => printSheets({kind:'count', copy:'Counter', brand:pb()});
@@ -774,8 +815,9 @@ function tabReview() {
   const S = ST.S, sm = summary(), ed = canEdit();
   $('#tab').innerHTML = `<div class="cards" id="sumCards"></div>
   <div class="row" style="margin-bottom:10px"><div class="pills" id="rf">${[['recount','Needs recount'],['variance','Variances vs system'],['all','All lines']].map(f => `<button data-f="${f[0]}" class="${S.rf === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div><select id="rb"><option value="">All brands</option>${brandsOf().map(b => `<option ${S.rb === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><span class="sp"></span>${ed ? '<button id="saveB" class="pri">Save</button>' : ''}</div>
+  ${ST.S.pre ? `<div class="note">Comparing with pre-count <b>${esc(ST.S.pre.name)}</b>: ${ST.S.lines.filter(l => { const p = preTot(l), c = calc(l); return p != null && c.total != null && Math.abs(p - c.total) > 1e-9; }).length} line(s) differ from the final count (marked “≠”).</div>` : ''}
   <p class="mut small" style="margin:0 0 8px">When counter and checker differ, a third person recounts and the recount becomes the final count. Every line where final count ≠ system quantity needs a reason.</p>
-  <div class="tw" style="max-height:66vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th><th class="num">Counter</th><th class="num">Checker</th><th class="num" style="background:#fff4de">Recount<br>Full</th><th class="num" style="background:#fff4de">Recount<br>Loose</th><th>Recount by</th><th class="num">Final</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody id="rBody"></tbody></table></div>`;
+  <div class="tw" style="max-height:66vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th>${ST.S.pre ? '<th class="num" title="Quantity typed by logistics">Pre-count</th>' : ''}<th class="num">Counter</th><th class="num">Checker</th><th class="num" style="background:#fff4de">Recount<br>Full</th><th class="num" style="background:#fff4de">Recount<br>Loose</th><th>Recount by</th><th class="num">Final</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody id="rBody"></tbody></table></div>`;
   document.querySelectorAll('#rf button').forEach(b => b.onclick = () => { S.rf = b.dataset.f; tabReview(); });
   $('#rb').onchange = e => { S.rb = e.target.value; fillReview(); };
   if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
@@ -802,7 +844,7 @@ function reviewRow(l, ed) {
   const q = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${id}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
   const cnt = (F, Lo) => N(F) == null ? '—' : fq(tot(F, Lo, N(l.packSize) || 0));
   const hasVar = c.v != null && Math.abs(c.v) > 1e-9;
-  return `<tr data-r="${id}"><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}${l.section === 'Expired' ? ' <span class="badge b-bad">expired</span>' : ''}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${cnt(l.cF, l.cL)}</td><td class="num">${cnt(l.kF, l.kL)}</td>
+  return `<tr data-r="${id}"><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}${l.section === 'Expired' ? ' <span class="badge b-bad">expired</span>' : ''}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td>${ST.S.pre ? (pt => `<td class="num" title="Logistics pre-count">${pt == null ? '<span class="mut">—</span>' : (c.total != null && Math.abs(pt - c.total) > 1e-9 ? `<b class="neg">${fq(pt)} ≠</b>` : fq(pt))}</td>`)(preTot(l)) : ''}<td class="num">${cnt(l.cF, l.cL)}</td><td class="num">${cnt(l.kF, l.kL)}</td>
   <td class="num">${needRe ? q('rF') : ''}</td><td class="num">${needRe ? q('rL', !pk) : ''}</td><td>${needRe ? `<input data-l="${id}" data-t="recountBy" value="${esc(l.recountBy)}" style="width:110px" ${ed ? '' : 'disabled'}>` : ''}</td>
   <td class="num c-final">${c.total != null ? fq(c.total) : '<span class="st-x">pending</span>'}</td><td class="num c-var ${hasVar ? (c.v < 0 ? 'neg' : 'pos') : ''}">${c.v != null ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td class="num c-val ${hasVar ? (c.val < 0 ? 'neg' : 'pos') : ''}">${hasVar && N(l.unitPrice) ? peso(c.val) : ''}</td>
   <td class="c-reason">${hasVar ? `<select data-l="${id}" data-t="reason" ${ed ? '' : 'disabled'}><option value="">— reason —</option>${REASONS.map(r => `<option ${l.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : ''}</td><td><input data-l="${id}" data-t="remarks" value="${esc(l.remarks)}" style="width:150px" ${ed ? '' : 'disabled'}></td></tr>`;
@@ -944,6 +986,8 @@ function fillPre() {
     <td>${inp(l, 'serial')}</td><td>${inp(l, 'lot')}</td>
     <td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="expiry" type="${d ? 'date' : 'text'}" value="${esc(l.expiry)}">` : esc(l.expiry)}</td><td>${inp(l, 'location')}</td>
     ${qty}<td class="wr">${inp(l, 'remarks')}</td><td class="wr">${x ? '' : (ed ? `<input data-l="${esc(l.lineId)}" data-f="changeReason" placeholder="${ch.length ? 'REQUIRED — why?' : 'only if changed'}" value="${esc(l.changeReason || '')}" style="${ch.length && !String(l.changeReason || '').trim() ? 'border-color:#c0392b;' : ''}min-width:180px">` : esc(l.changeReason || ''))}${ch.length ? `<div class="small mut">was: ${ch.map(k => esc(origOf(l)[k] || '—')).join(' / ')}</div>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="13" class="mut" style="padding:14px">No lines.</td></tr>';
+  const L1 = ['Type', 'PN', 'Description', 'UOM', 'Serial no.', 'Lot no.', 'Expiry', 'Location', 'Full (sealed)', 'Loose qty', 'Loose in', 'Remarks', 'Reason if changed'], L2 = ['Type', 'PN', 'Description', 'UOM', 'Serial no.', 'Lot no.', 'Expiry', 'Location', 'Check part', 'Remarks', 'Reason if changed'];
+  document.querySelectorAll('#pBody tr[data-row]').forEach(tr => { const L = tr.querySelector('select[data-f=babyOk]') ? L2 : L1; [...tr.children].forEach((td, i) => td.setAttribute('data-label', L[i] || '')); });
 }
 function preAddModal(isNew) {
   const S = ST.S, bs = [...new Set(S.lines.map(l => l.brand))].sort(), cur = S.lines.filter(l => l.brand === PRE.brand && !l.isExtra);
