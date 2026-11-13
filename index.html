@@ -60,7 +60,7 @@ td.st{white-space:nowrap;font-size:12px;font-weight:600}.st-m{color:var(--ok)}.s
 }
 #printArea{font:9pt/1.25 Arial,Helvetica,sans-serif;color:#000}
 #printArea table{border-collapse:collapse;width:100%}#printArea table.ps{table-layout:fixed}#printArea table.ps td,#printArea table.ps th{overflow-wrap:anywhere;word-break:break-word}#printArea th,#printArea td{border:1px solid #444;padding:2px 4px;vertical-align:top}
-#printArea th{background:#111;color:#fff;border-color:#111;font-size:7.5pt;letter-spacing:.04em;text-transform:uppercase;text-align:left}#printArea thead td.ttl{border:0;border-bottom:2.5px solid #111;font-size:17pt;font-weight:800;letter-spacing:-.01em;padding:0 0 5px}#printArea thead td.ttl small{display:block;font-size:7.5pt;letter-spacing:.14em;font-weight:700}#printArea tr.mom td{background:#e6e6e6;font-weight:700}
+#printArea th{background:#111;color:#fff;border-color:#111;font-size:7.5pt;letter-spacing:.04em;text-transform:uppercase;text-align:left}#printArea thead td.ttl{border:0;border-bottom:2.5px solid #111;font-size:17pt;font-weight:800;letter-spacing:-.01em;padding:0 0 5px}#printArea thead td.ttl small{display:block;font-size:7.5pt;letter-spacing:.14em;font-weight:700}#printArea tr.gh td{background:#fff;font-size:7pt;font-weight:700;letter-spacing:.06em;text-align:center;padding:1px}#printArea tr.mom td{background:#e6e6e6;font-weight:700}
 #printArea thead td.inf{border:0;padding:1px 0 4px;font-size:8.5pt}
 #printArea tr{page-break-inside:avoid}#printArea tr.bb td{background:#f2f2f2}#printArea td.w{height:20px}#printArea tr.grp td{background:#f0d9d6;font-weight:bold;text-align:center}
 #printArea .sg{display:flex;gap:28px;margin-top:14px;page-break-inside:avoid}#printArea .sg>div{flex:1;border-top:1px solid #000;padding-top:3px;font-size:8.5pt;min-height:50px}#printArea td.sf{border:0;border-top:1.5px solid #000;padding:12px 0 0;font-size:9pt}#printArea tfoot{display:table-footer-group}
@@ -695,7 +695,7 @@ function tabPrint() {
   <div class="row" style="margin-top:10px">
   <button class="pri" id="pBl">1 · Pre-count sheet — blank (for logistics)</button>
   <button id="pPre">Control sheet with system qty (tabulator only)</button>
-  <button id="pCo">2 · Counting sheets · Counter copy</button><button id="pCk">Counting sheets · Checker copy</button><button id="pBoth">Both copies</button></div>
+  <button id="pCo">2 · Counting sheets · Counter copy</button><button id="pCk">Counting sheets · Checker copy</button><button id="pBoth">Both copies</button><button class="pri" id="pDes" title="One page with Counter, Checker and Recount columns, as in the RainPhil form design">Count sheet (form design)</button></div>
   <p class="mut small">A full-screen preview opens first, then use <b>Print…</b> or <b>Save as file</b>. The <b>pre-count sheet</b> and the <b>counting sheets</b> show no system quantity and end with blank rows for items found that are not on the list. The <b>control sheet</b> (with system qty and the checklist) stays with the tabulator. Each line has <b>Full</b> (complete units) and <b>Loose</b> (loose pieces) boxes. Lines are sorted by location so counters can walk the shelves in order.</p></div>`;
   document.querySelectorAll('button[data-pv]').forEach(btn => btn.onclick = () => {
     const b = btn.dataset.pv, ls = linesOfBrand(b);
@@ -713,6 +713,7 @@ function tabPrint() {
   $('#pPre').onclick = () => printSheets({kind:'pre', brand:pb()});
   $('#pCo').onclick = () => printSheets({kind:'count', copy:'Counter', brand:pb()});
   $('#pCk').onclick = () => printSheets({kind:'count', copy:'Checker', brand:pb()});
+  $('#pDes').onclick = () => printSheets({kind:'count', copy:'Design', brand:pb()});
   $('#pBoth').onclick = () => printSheets({kind:'count', copy:'Both', brand:pb()});
 }
 
@@ -1080,6 +1081,26 @@ function sheetHtml(b, kind, copy) {
   const W = kind === 'pre' ? [3,10,4,10,21,5,15,9,8,9,6] : [3,10,4,9,15,7,11,8,7,8,6,6,6];
   return `<section class="sheet"><table class="ps"><colgroup>${W.map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead><tr><td class="ttl" colspan="${cols}"><small>RAINPHIL INC. · PHYSICAL INVENTORY</small>${title}</td></tr><tr><td class="inf" colspan="${cols}"><b>${esc(s.name)}</b> · Session ${esc(s.id)} · Count date ${esc(s.date)} · <b>Brand: ${esc(b)}</b> · Counter: ${esc(a.c || '__________')} · Checker: ${esc(a.k || '__________')} · Type: Eqpt=Equipment, Rgt=Reagent, Cons=Plastic consumable, Accy=Accessory, Parts=Spare parts, Lic-SW=Licensed software${hasBaby && kind !== 'pre' ? ' · <b>↳ = baby part of the item above: DO NOT COUNT. Tick “correct”, or write the actual PN / serial / lot / expiry.</b>' : ''}</td></tr><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td class="sf" colspan="${cols}">${pageSig}</td></tr></tfoot></table>${foot}</section>`;
 }
+function sheetDesign(b) {
+  const S = ST.S, s = S.session, a = s.assign[b] || {}, ls = linesOfBrand(b), W = [3,10,19,6,11,8,8,5,5,6,5,5,7];
+  let rows = '', prev = null, nn = 0;
+  ls.forEach((l, i) => {
+    const baby = isBaby(l); if (!baby) nn++;
+    if (l.section !== prev) { if (l.section === 'Expired') rows += '<tr class="grp"><td colspan="13">EXPIRED ITEMS</td></tr>'; prev = l.section; }
+    const mom = !baby && ls[i + 1] && isBaby(ls[i + 1]) && ls[i + 1].motherId === l.itemId;
+    const tail = baby ? '<td colspan="6" style="font-size:7pt">☐ correct &nbsp; ☐ different &nbsp; ☐ used in mother — not present (0)<br>actual PN / serial / lot / exp: ______________________</td>' : '<td class="w"></td><td></td><td></td><td></td><td></td><td></td>';
+    rows += `<tr${baby ? ' class="bb"' : (mom ? ' class="mom"' : '')}><td>${baby ? '↳' : nn}</td><td>${baby ? '↳ ' : ''}${esc(l.pn)}</td><td>${esc(l.desc)}${baby ? '<br><small><i>baby part — do not count</i></small>' : ''}</td><td>${uomTxt(l)}</td><td class="ser">${esc([l.serial, l.lot].filter(Boolean).join(' / '))}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}</td>${tail}</tr>`;
+  });
+  rows += '<tr class="grp"><td colspan="13">ITEMS FOUND BUT NOT ON THE LIST — write in PN, description, UOM, serial / lot / expiry, location, quantity</td></tr>';
+  for (let k = 1; k <= 8; k++) rows += `<tr><td class="w">N${k}</td>${'<td></td>'.repeat(12)}</tr>`;
+  const sig = (t, n, x) => `<div><b>${t}</b><br>${esc(n || '')} ${x}</div>`;
+  return `<section class="sheet"><table class="ps"><colgroup>${W.map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead><tr><td class="ttl" colspan="13"><small>RAINPHIL INC. · PHYSICAL INVENTORY</small>COUNT SHEET <span style="font-weight:500;font-size:11pt">· blind count</span></td></tr>
+  <tr><td class="inf" colspan="13"><b>${esc(s.name)}</b> · Session ${esc(s.id)} · Count date ${esc(s.date)} · <b>Brand: ${esc(b)}</b> · <b>Count in ink, no erasing.</b> Full = sealed UOM; Loose = opened, in its own unit. Counter and Checker count independently. A baby used in the mother: write 0. System quantity is not shown.</td></tr>
+  <tr class="gh"><td colspan="7" style="border:0"></td><td colspan="3">COUNTER</td><td colspan="2">CHECKER</td><td>RECOUNT</td></tr>
+  <tr><th>#</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial / Lot</th><th>Expiry</th><th>Location</th><th>Full</th><th>Loose</th><th>Loose in</th><th>Full</th><th>Loose</th><th>Final</th></tr></thead><tbody>${rows}</tbody>
+  <tfoot><tr><td class="sf" colspan="13">Signature (wet ink) on EVERY page: _______________________ &nbsp; Date &amp; time: ____________</td></tr></tfoot></table>
+  <div class="sg">${sig('COUNTED BY', a.c, 'Full name · signature · date')}${sig('CHECKED BY', a.k, 'Full name · signature · date')}${sig('ENCODED BY', a.e, 'Tabulator full name · signature · date')}${sig('APPROVED BY', '', 'Full name · signature · date')}</div></section>`;
+}
 function printSheets(o) {
   const S = ST.S, s = S.session, bs = brandsOf().filter(b => !o.brand || b === o.brand); let h = '';
   if (o.kind === 'pre') {
@@ -1090,7 +1111,7 @@ function printSheets(o) {
     if (o.brand) h = '';
   }
   bs.forEach(b => {
-    if (o.kind === 'count') { if (o.copy === 'Both') h += sheetHtml(b, 'count', 'Counter') + sheetHtml(b, 'count', 'Checker'); else h += sheetHtml(b, 'count', o.copy); }
+    if (o.kind === 'count') { if (o.copy === 'Design') h += sheetDesign(b); else if (o.copy === 'Both') h += sheetHtml(b, 'count', 'Counter') + sheetHtml(b, 'count', 'Checker'); else h += sheetHtml(b, 'count', o.copy); }
     else if (o.kind === 'confirm') h += sheetHtml(b, 'confirm', 'Counter') + sheetHtml(b, 'confirm', 'Checker');
     else if (o.kind === 'blank') h += sheetHtml(b, 'blank', 'Logistics');
     else h += sheetHtml(b, 'pre', '');
