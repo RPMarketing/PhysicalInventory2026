@@ -40,6 +40,7 @@ td.num,th.num{text-align:right}td.ser,th.ser{min-width:150px;overflow-wrap:anywh
 .fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.fg label{display:block;font-size:12px;color:var(--mut);margin-bottom:2px}.fg input,.fg select,.fg textarea{width:100%}
 #toast{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;flex-direction:column;gap:8px}
 #toast div{background:#1d2433;color:#fff;padding:9px 14px;border-radius:8px;max-width:420px}#toast div.err{background:var(--bad)}
+#pill{position:fixed;top:10px;left:50%;transform:translateX(-50%);background:#1b2a41;color:#fff;padding:6px 16px;border-radius:20px;font-size:13px;z-index:100;display:none;box-shadow:0 2px 10px #0004}#blk{position:fixed;inset:0;z-index:98;display:none;cursor:progress}
 #busy{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--pri),#8fb6f2);display:none;z-index:99}
 .login{max-width:380px;margin:12vh auto}.login .card{padding:24px}.login input,.login select{width:100%;margin-bottom:10px}
 .brandlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 10px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}
@@ -81,14 +82,14 @@ body.preview .sheet{background:#fff;width:1120px;max-width:none;margin:0 auto 18
 </style></head>
 <body>
 <div id="pvBar"><b id="pvT">Preview</b><span class="small" style="opacity:.8">Paper: A4 landscape (already set)</span><button id="pvPrint" class="pri">Print…</button><button id="pvSave">Save as file</button><button id="pvClose">Close preview</button></div>
-<div id="busy"></div><div id="app"></div><div id="modal"></div><div id="toast"></div><div id="printArea"></div>
+<div id="busy"></div><div id="pill"></div><div id="blk"></div><div id="app"></div><div id="modal"></div><div id="toast"></div><div id="printArea"></div>
 <script>/* ===== RainCount core (shared by Apps Script backend and the demo/mock page) =====
    Pure logic: authentication, roles, status flow, signatures. Storage is supplied by an adapter `db`. */
 var ITEM_FIELDS = ['id','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','sysQty','asOf','unitPrice','notes','section','source','flags','active','motherId'];
-var LINE_FIELDS = ['lineId','itemId','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','section','sysQty','unitPrice','isExtra','cF','cL','kF','kL','rF','rL','recountBy','reason','remarks','motherId','babyOk'];
+var LINE_FIELDS = ['lineId','itemId','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','section','sysQty','unitPrice','isExtra','cF','cL','kF','kL','rF','rL','recountBy','reason','remarks','motherId','babyOk','orig','changeReason'];
 var SESSION_FIELDS = ['id','name','date','status','brands','includeExpired','notes','assign','createdBy','createdAt','returnNote','lineCount','kind'];
 var USER_FIELDS = ['name','role','salt','pinHash','active'];
-var SIG_FIELDS = ['sessionId','role','name','signedAt','image'];
+var SIG_FIELDS = ['sessionId','role','name','signedAt','image','brand'];
 var LOG_FIELDS = ['time','user','action','detail'];
 var STATUSES = ['Draft','Counting','Encoding','Review','Verification','Approval','Approved'];
 var EDITABLE = ['Draft','Counting','Encoding','Review'];
@@ -113,7 +114,13 @@ function findSession(db, id) {
 function auth(db, token) {
   var raw = token ? db.cacheGet('t_' + token) : null;
   if (!raw) throw new Error('SESSION_EXPIRED');
+  db.cachePut('t_' + token, raw, 21600);
   return JSON.parse(raw);
+}
+function changedFields(l) {
+  if (!l.orig || l.isExtra === 'Y') return [];
+  var o = {}; try { o = JSON.parse(l.orig); } catch (e) { return []; }
+  return ['pn', 'desc', 'uom', 'category'].filter(function (k) { return String(o[k] == null ? '' : o[k]).trim() !== String(l[k] == null ? '' : l[k]).trim(); });
 }
 function need(u, roles) { if (roles.indexOf(u.role) < 0) throw new Error('Your role (' + u.role + ') is not allowed to do this'); }
 function log(db, u, action, detail) { db.append('Log', [{time:db.now(), user:u.name, action:action, detail:detail || ''}]); }
@@ -194,7 +201,7 @@ function route(db, req) {
       var lines = items.map(function (i, n) {
         return {lineId:sid + '-' + pad(n + 1, 5), itemId:i.id, brand:i.brand, category:i.category, pn:i.pn, desc:i.desc, serial:i.serial, lot:i.lot, expiry:i.expiry, uom:i.uom,
                 looseUom:i.looseUom || '', packSize:numOrBlank(i.packSize), location:i.location, storage:i.storage, section:i.section || 'Active', sysQty:numOrBlank(i.sysQty), unitPrice:numOrBlank(i.unitPrice),
-                isExtra:'', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:i.motherId || '', babyOk:''};
+                isExtra:'', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:i.motherId || '', babyOk:'', orig:kind === 'pre' ? JSON.stringify({pn:i.pn || '', desc:i.desc || '', uom:i.uom || '', category:i.category || ''}) : '', changeReason:''};
       });
       db.createLines(sid, lines);
       var srow = {id:sid, name:d.name, date:d.date || db.now().slice(0, 10), status:kind === 'pre' ? 'Open' : 'Draft', kind:kind, brands:JSON.stringify(brands), includeExpired:d.includeExpired ? 'Y' : '',
@@ -230,9 +237,9 @@ function route(db, req) {
         var existing = {}; db.lines(d.id).forEach(function (l) { existing[l.lineId] = l; });
         ls = (d.lines || []).map(function (l) {
           var ex = existing[l.lineId];
-          if (ex) { ['cF', 'cL', 'serial', 'lot', 'expiry', 'location', 'remarks', 'babyOk', 'looseUom'].forEach(function (k) { if (l[k] !== undefined) ex[k] = l[k]; }); return ex; }
+          if (ex) { ['cF', 'cL', 'serial', 'lot', 'expiry', 'location', 'remarks', 'babyOk', 'looseUom', 'category', 'desc', 'uom', 'pn', 'changeReason'].forEach(function (k) { if (l[k] !== undefined) ex[k] = l[k]; }); return ex; }
           if (l.isExtra !== 'Y' || String(l.lineId).indexOf(d.id + '-X') !== 0) throw new Error('Not allowed');
-          var nl = {itemId:'', section:'Active', sysQty:'', unitPrice:'', isExtra:'Y', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', motherId:'', babyOk:'', storage:''};
+          var nl = {orig:'', changeReason:'', itemId:'', section:'Active', sysQty:'', unitPrice:'', isExtra:'Y', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', motherId:'', babyOk:'', storage:''};
           ['lineId', 'brand', 'category', 'pn', 'desc', 'serial', 'lot', 'expiry', 'uom', 'looseUom', 'packSize', 'location', 'cF', 'cL', 'remarks'].forEach(function (k) { nl[k] = l[k] === undefined ? '' : l[k]; });
           return nl;
         });
@@ -249,6 +256,16 @@ function route(db, req) {
       var added = db.upsertLines(d.id, ls);
       if (added) { s3.lineCount = Number(s3.lineCount || 0) + added; db.upsert('Sessions', 'id', [s3]); }
       return {saved:ls.length, ids:ls.map(function (l) { return l.lineId; })};
+    }
+    case 'deleteSession': {
+      need(u, ['encoder']);
+      var sd = findSession(db, d.id);
+      if (sd.status === 'Approved' && !d.force) throw new Error('This session is Approved. Confirm to delete the signed record.');
+      db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id); });
+      db.deleteWhere('Sessions', function (x) { return String(x.id) === String(d.id); });
+      db.dropLines(d.id);
+      log(db, u, 'deleteSession', d.id + ' ' + sd.name + ' (' + sd.status + ')');
+      return {deleted:d.id};
     }
     case 'refreshLinks': {
       need(u, ['encoder']);
@@ -276,8 +293,8 @@ function route(db, req) {
         }
         var it = byId[l.itemId]; if (!it) return;
         var diff = false;
-        ['serial', 'lot', 'expiry', 'location', 'looseUom'].forEach(function (k) { var nv = String(l[k] == null ? '' : l[k]).trim(); if (nv !== String(it[k] == null ? '' : it[k]).trim() && !(k === 'looseUom' && nv === '')) { it[k] = nv; diff = true; } });
-        if (diff) { it.flags = 'Updated from ' + tag; changed.push(it); nUpd++; }
+        ['serial', 'lot', 'expiry', 'location', 'looseUom', 'category', 'desc', 'uom', 'pn'].forEach(function (k) { var nv = String(l[k] == null ? '' : l[k]).trim(); if (nv !== String(it[k] == null ? '' : it[k]).trim() && !(nv === '' && (k === 'looseUom' || k === 'category' || k === 'desc' || k === 'uom' || k === 'pn'))) { it[k] = nv; diff = true; } });
+        if (diff) { it.flags = 'Updated from ' + tag + (String(l.changeReason || '').trim() ? ' — reason: ' + String(l.changeReason).trim() : ''); changed.push(it); nUpd++; }
       });
       db.upsert('Items', 'id', changed.concat(fresh));
       sp.status = 'Applied'; db.upsert('Sessions', 'id', [sp]);
@@ -295,12 +312,33 @@ function route(db, req) {
       else if (u.role === 'verifier') ok = from === 'Verification' && to === 'Review';
       else if (u.role === 'approver') ok = from === 'Approval' && to === 'Review';
       if (!ok) throw new Error('Cannot change status from ' + from + ' to ' + to + ' as ' + u.role);
+      if (from === 'Encoding' && to === 'Review') {
+        var asg0 = {}; try { asg0 = JSON.parse(s4.assign || '{}'); } catch (e0) {}
+        var need0 = {}; db.lines(d.id).forEach(function (l) { if (l.cF !== '' || l.kF !== '' || l.cL !== '' || l.kL !== '') need0[l.brand] = 1; });
+        var miss0 = Object.keys(need0).filter(function (b) { return !String((asg0[b] || {}).e || '').trim(); });
+        if (miss0.length) throw new Error('Enter the encoder full name (Encoded by) for: ' + miss0.join(', '));
+      }
       if (u.role !== 'encoder' && !String(d.note || '').trim()) throw new Error('Please enter a reason for returning the count');
-      if (from === 'Verification' || from === 'Approval') db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id); });
+      if (from === 'Verification' || from === 'Approval') db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id) && (x.role === 'verifier' || x.role === 'approver'); });
       s4.status = to; s4.returnNote = (u.role !== 'encoder' && to === 'Review') ? (u.name + ': ' + d.note) : (to === 'Review' ? s4.returnNote : '');
       db.upsert('Sessions', 'id', [s4]);
       log(db, u, 'setStatus', d.id + ' ' + from + ' -> ' + to + (d.note ? ' | ' + d.note : ''));
       return sessionOut(s4);
+    }
+    case 'signOff': {
+      need(u, ['encoder']);
+      var so = findSession(db, d.id);
+      if (so.kind === 'pre' || EDITABLE.indexOf(so.status) < 0) throw new Error('Sign-off is only possible before verification (status: ' + so.status + ')');
+      if (['counter', 'checker', 'encoder'].indexOf(d.role) < 0) throw new Error('Unknown signatory');
+      var nm = String(d.name || '').trim(); if (nm.length < 3) throw new Error('Enter the full name of the signatory');
+      if (!d.image || String(d.image).length < 200) throw new Error('Please draw the signature');
+      if (String(d.image).length > 45000) throw new Error('Signature image is too large. Clear and sign again.');
+      db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id) && x.role === d.role && String(x.brand || '') === String(d.brand || ''); });
+      db.append('Signatures', [{sessionId:d.id, role:d.role, name:nm, signedAt:db.now(), image:d.image, brand:d.brand || ''}]);
+      var asg1 = {}; try { asg1 = JSON.parse(so.assign || '{}'); } catch (e1) {}
+      var key = d.role === 'counter' ? 'c' : (d.role === 'checker' ? 'k' : 'e'); asg1[d.brand] = asg1[d.brand] || {}; asg1[d.brand][key] = nm; so.assign = JSON.stringify(asg1);
+      db.upsert('Sessions', 'id', [so]); log(db, u, 'signOff', d.id + ' ' + d.brand + ' ' + d.role + ' ' + nm);
+      return sessionOut(so);
     }
     case 'sign': {
       need(u, ['verifier', 'approver', 'logistics']);
@@ -308,7 +346,12 @@ function route(db, req) {
       if (!checkPin(db, me, d.pin)) throw new Error('Wrong PIN');
       if (!d.image || String(d.image).length < 200) throw new Error('Please draw your signature');
       if (String(d.image).length > 45000) throw new Error('Signature image is too large. Clear and sign again.');
-      if (u.role === 'logistics') { if (s5.kind !== 'pre' || s5.status !== 'Open') throw new Error('This pre-count is not open for signing'); s5.status = 'Submitted'; }
+      if (u.role === 'logistics') {
+        if (s5.kind !== 'pre' || s5.status !== 'Open') throw new Error('This pre-count is not open for signing');
+        var noWhy = db.lines(d.id).filter(function (l) { return changedFields(l).length && !String(l.changeReason || '').trim(); });
+        if (noWhy.length) throw new Error('State a reason for the change on ' + noWhy.length + ' line(s): ' + noWhy.slice(0, 3).map(function (l) { return l.pn; }).join(', ') + (noWhy.length > 3 ? '…' : ''));
+        s5.status = 'Submitted';
+      }
       else if (s5.kind === 'pre') throw new Error('Only logistics signs a pre-count');
       else if (u.role === 'verifier' && s5.status === 'Verification') s5.status = 'Approval';
       else if (u.role === 'approver' && s5.status === 'Approval') s5.status = 'Approved';
@@ -345,7 +388,14 @@ const peso = x => (x < 0 ? '-' : '') + '₱' + Math.abs(x).toLocaleString('en-PH
 const tot = (F, L, pack) => (N(F) || 0) + (pack > 0 ? (N(L) || 0) / pack : 0);
 function toast(msg, err) { const d = document.createElement('div'); d.textContent = msg; if (err) d.className = 'err'; $('#toast').appendChild(d); setTimeout(() => d.remove(), err ? 7000 : 3200); }
 let busyN = 0;
-function busy(on) { busyN += on ? 1 : -1; $('#busy').style.display = busyN > 0 ? 'block' : 'none'; }
+let blockN = 0, pillTxt = [];
+function busy(on, txt, block) {
+  busyN += on ? 1 : -1; $('#busy').style.display = busyN > 0 ? 'block' : 'none';
+  if (on) pillTxt.push(txt || 'Loading…'); else pillTxt.shift();
+  if (block) blockN += on ? 1 : -1;
+  const p = $('#pill'); p.style.display = busyN > 0 ? 'block' : 'none'; p.textContent = pillTxt.indexOf('Saving…') >= 0 ? 'Saving… please wait, do not click again' : (pillTxt[0] || 'Loading…');
+  $('#blk').style.display = blockN > 0 ? 'block' : 'none';
+}
 function modal(html, wide) { const m = $('#modal'); m.innerHTML = `<div class="box${wide ? ' wide' : ''}">${html}</div>`; m.style.display = 'flex'; }
 function closeModal() { $('#modal').style.display = 'none'; $('#modal').innerHTML = ''; }
 $('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal' && !$('#modal').dataset.sticky) closeModal(); });
@@ -354,17 +404,19 @@ $('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal' && 
 function call(action, data) {
   return new Promise((res, rej) => {
     const req = {action, token:ST.token, data:data || {}};
-    const done = r => { if (r.ok) res(r.data); else { if (r.error === 'SESSION_EXPIRED') { logout('Your session expired. Please sign in again.'); } rej(new Error(r.error === 'SESSION_EXPIRED' ? 'Session expired' : r.error)); } };
+    const done = r => { if (r.ok) res(r.data); else { if (r.error === 'SESSION_EXPIRED') { if (ST.user && ST.user.role) reLogin(); else logout('Your session expired. Please sign in again.'); } rej(new Error(r.error === 'SESSION_EXPIRED' ? 'Session expired' : r.error)); } };
     if (MODE === 'gas') google.script.run.withSuccessHandler(s => done(JSON.parse(s))).withFailureHandler(e => rej(new Error((e && e.message) || e))).api(JSON.stringify(req));
     else if (MODE === 'fetch') fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(req)}).then(r => r.json()).then(done).catch(rej);
     else setTimeout(() => done(core(demoDb, JSON.parse(JSON.stringify(req)))), 80);
   });
 }
+const READS = ['getSession', 'bootstrap', 'names', 'login'];
 async function run(action, data, quiet) {
-  busy(true);
+  const w = READS.indexOf(action) < 0, blk = w && !quiet;
+  busy(true, w ? 'Saving…' : 'Loading…', blk);
   try { return await call(action, data); }
   catch (e) { if (!quiet) toast(e.message, true); throw e; }
-  finally { busy(false); }
+  finally { busy(false, null, blk); }
 }
 
 /* ---------- demo storage (mock mode only) ---------- */
@@ -392,13 +444,18 @@ const demoDb = (function () {
     upsert: (t, key, rows) => { rows.forEach(o => { const i = S[t].findIndex(x => String(x[key]) === String(o[key])); if (i >= 0) S[t][i] = clone(o); else S[t].push(clone(o)); }); save(); },
     deleteWhere: (t, pred) => { S[t] = S[t].filter(o => !pred(o)); save(); },
     createLines: (sid, lines) => { S.lines[sid] = clone(lines); save(); },
+    dropLines: sid => { delete S.lines[sid]; save(); },
     lines: sid => clone(S.lines[sid] || []),
     upsertLines: (sid, ls) => { const a = S.lines[sid]; let added = 0; ls.forEach(o => { const i = a.findIndex(x => x.lineId === o.lineId); if (i >= 0) a[i] = clone(o); else { a.push(clone(o)); added++; } }); save(); return added; }
   };
 })();
 
 /* ---------- auth ---------- */
+const SKEY = 'raincount_login_' + (typeof API_URL === 'string' ? API_URL.slice(-24) : '') + MODE;
+const saveLogin = () => { try { localStorage.setItem(SKEY, JSON.stringify({token:ST.token, name:ST.user && ST.user.name})); } catch (e) {} };
+const clearLogin = () => { try { localStorage.removeItem(SKEY); } catch (e) {} };
 async function boot() {
+  try { const sv = JSON.parse(localStorage.getItem(SKEY) || 'null'); if (sv && sv.token && !ST.token) { ST.token = sv.token; ST.user = {name:sv.name}; try { await loadAll(); return; } catch (e) { ST.token = null; ST.user = null; } } } catch (e) {}
   try { const names = await run('names', {}, true); renderLogin(names); } catch (e) { renderLogin([], e.message); }
 }
 function renderLogin(names, err, msg) {
@@ -409,15 +466,30 @@ function renderLogin(names, err, msg) {
   <label class="small mut">PIN</label><input id="lgP" type="password" inputmode="numeric" autocomplete="off" maxlength="8">
   <button class="pri" style="width:100%" id="lgB">Sign in</button></div></div>`;
   const go = async () => {
-    try { const r = await run('login', {name:$('#lgN').value, pin:$('#lgP').value}); ST.token = r.token; ST.user = r.user; await loadAll(); }
+    try { const r = await run('login', {name:$('#lgN').value, pin:$('#lgP').value}); ST.token = r.token; ST.user = r.user; saveLogin(); await loadAll(); }
     catch (e) { $('#lgP').value = ''; }
   };
   $('#lgB').onclick = go; $('#lgP').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); $('#lgP').focus();
 }
-function logout(msg) { ST.token = null; ST.user = null; ST.S = null; ST.dirty.clear(); closeModal(); boot().then(() => { if (msg) toast(msg, true); }); }
-async function loadAll() {
+function reLogin() {
+  if ($('#rlP')) return; const nm = ST.user.name;
+  modal(`<h2>Session timed out</h2><p class="small mut">Your work on this screen is kept. Enter your PIN to continue as <b>${esc(nm)}</b>, then save again.</p><input id="rlP" type="password" inputmode="numeric" maxlength="8" style="width:140px"><div class="row" style="margin-top:12px"><span class="sp"></span><button id="rlX">Sign out instead</button><button class="pri" id="rlOK">Continue</button></div>`); $('#modal').dataset.sticky = '1';
+  const go = async () => { try { const r = await run('login', {name:nm, pin:$('#rlP').value}); ST.token = r.token; saveLogin(); delete $('#modal').dataset.sticky; closeModal(); toast('Signed in again — press Save if you had unsaved changes'); } catch (e) { $('#rlP').value = ''; } };
+  $('#rlOK').onclick = go; $('#rlP').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); $('#rlX').onclick = () => { delete $('#modal').dataset.sticky; ST.dirty.clear(); logout(); };
+}
+function logout(msg) { clearLogin(); ST.token = null; ST.user = null; ST.S = null; ST.dirty.clear(); closeModal(); boot().then(() => { if (msg) toast(msg, true); }); }
+async function refreshAll() {
+  if (!(await leaveOk())) return;
+  try {
+    const sid = ST.S && ST.S.session.id, v = ST.view, tab = ST.S && ST.S.tab;
+    await loadAll(true);
+    if (sid) { const g = await run('getSession', {id:sid}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); } else go(v);
+    toast('Refreshed');
+  } catch (e) {}
+}
+async function loadAll(keepView) {
   const b = await run('bootstrap', {});
-  ST.items = b.items; ST.sessions = b.sessions; ST.users = b.users; ST.user = b.user; ST.view = 'sessions'; ST.S = null;
+  ST.items = b.items; ST.sessions = b.sessions; ST.users = b.users; ST.user = b.user; if (!keepView) { ST.view = 'sessions'; ST.S = null; }
   shell();
 }
 const isEnc = () => ST.user && ST.user.role === 'encoder';
@@ -425,9 +497,10 @@ function shell() {
   const nav = [['sessions','Count sessions']].concat(isEnc() ? [['items','Items'],['users','Users']] : []);
   $('#app').innerHTML = `${MODE === 'demo' ? '<div class="demo">MOCK / DEMO MODE — sample data stored only in this browser · <a href="#" id="dReset">reset demo data</a></div>' : ''}
   <header class="top"><h1>RainPhil Physical Count</h1><nav>${nav.map(n => `<button data-v="${n[0]}" class="${ST.view === n[0] ? 'on' : ''}">${n[1]}</button>`).join('')}</nav>
-  <span class="who">Signed in: <b>${esc(ST.user.name)}</b> (${esc(ST.user.role)})</span><button id="lo">Sign out</button></header><main id="main"></main>`;
+  <span class="who">Signed in: <b>${esc(ST.user.name)}</b> (${esc(ST.user.role)})</span><button id="rf" title="Reload the latest data from the sheet">↻ Refresh</button><button id="lo">Sign out</button></header><main id="main"></main>`;
   document.querySelectorAll('nav button').forEach(b => b.onclick = () => go(b.dataset.v));
   $('#lo').onclick = async () => { if (await leaveOk()) logout(); };
+  $('#rf').onclick = refreshAll;
   if ($('#dReset')) $('#dReset').onclick = e => { e.preventDefault(); if (confirm('Reset all demo data?')) { demoDb.reset(); logout('Demo data reset'); } };
   render();
 }
@@ -444,10 +517,15 @@ function renderSessions() {
   ${ST.user.role === 'logistics' ? '<div class="note">Open your pre-count, type what you found, add anything not on the list, then sign and submit.</div>' : ''}
   ${ST.user.role === 'verifier' ? '<div class="note">You are a verifier: open a session in <b>Verification</b> to review and sign.</div>' : ''}
   ${ST.user.role === 'approver' ? '<div class="note">You are an approver: open a session in <b>Approval</b> to review and sign.</div>' : ''}
-  <div class="tw"><table class="t"><thead><tr><th>Session</th><th>Count date</th><th>Brands</th><th class="num">Lines</th><th>Status</th><th>Created by</th></tr></thead><tbody>
-  ${rows.map(s => `<tr style="cursor:pointer" data-id="${esc(s.id)}"><td><b>${esc(s.name)}</b>${s.kind === 'pre' ? ' <span class="badge b-warn">pre-count</span>' : ''}<div class="small mut">${esc(s.id)}</div></td><td>${esc(s.date)}</td><td>${s.brands.length} brand(s)</td><td class="num">${s.lineCount}</td><td>${stBadge(s.status)}${(s.status === 'Verification' && ST.user.role === 'verifier') || (s.status === 'Approval' && ST.user.role === 'approver') ? ' <span class="badge b-warn">needs your signature</span>' : ''}</td><td>${esc(s.createdBy)}</td></tr>`).join('') || '<tr><td colspan="6" class="mut" style="padding:20px">No count sessions yet.</td></tr>'}
+  <div class="tw"><table class="t"><thead><tr><th>Session</th><th>Count date</th><th>Brands</th><th class="num">Lines</th><th>Status</th><th>Created by</th>${isEnc() ? '<th></th>' : ''}</tr></thead><tbody>
+  ${rows.map(s => `<tr style="cursor:pointer" data-id="${esc(s.id)}"><td><b>${esc(s.name)}</b>${s.kind === 'pre' ? ' <span class="badge b-warn">pre-count</span>' : ''}<div class="small mut">${esc(s.id)}</div></td><td>${esc(s.date)}</td><td>${s.brands.length} brand(s)</td><td class="num">${s.lineCount}</td><td>${stBadge(s.status)}${(s.status === 'Verification' && ST.user.role === 'verifier') || (s.status === 'Approval' && ST.user.role === 'approver') ? ' <span class="badge b-warn">needs your signature</span>' : ''}</td> <td>${esc(s.createdBy)}</td>${isEnc() ? `<td><button class="danger small" data-del="${esc(s.id)}">Delete</button></td>` : ''}</tr>`).join('') || '<tr><td colspan="7" class="mut" style="padding:20px">No count sessions yet.</td></tr>'}
   </tbody></table></div>`;
   document.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openSession(tr.dataset.id));
+  document.querySelectorAll('button[data-del]').forEach(b => b.onclick = e => { e.stopPropagation(); const s = ST.sessions.find(x => x.id === b.dataset.del); if (!s) return;
+    modal(`<h2>Delete this session?</h2><p><b>${esc(s.name)}</b><br><span class="small mut">${esc(s.id)} · ${esc(s.status)} · ${s.lineCount} lines</span></p><p class="small">This permanently removes the session, all its counts and its signatures. The item master is not touched. This cannot be undone.</p>${s.status === 'Approved' ? '<p class="note">This session is <b>Approved</b>. Deleting it removes the signed record.</p>' : ''}<p class="small">Type <b>DELETE</b> to confirm:</p><input id="dlC" style="width:140px"><div class="row" style="margin-top:12px"><span class="sp"></span><button id="dlX">Cancel</button><button class="danger" id="dlOK">Delete</button></div>`);
+    $('#dlX').onclick = closeModal;
+    $('#dlOK').onclick = async () => { if ($('#dlC').value.trim() !== 'DELETE') return toast('Type DELETE to confirm', true); try { await run('deleteSession', {id:s.id, force:s.status === 'Approved'}); closeModal(); ST.sessions = ST.sessions.filter(x => x.id !== s.id); renderSessions(); toast('Session deleted'); } catch (x) {} };
+  });
   if ($('#ns')) $('#ns').onclick = newSessionModal;
 }
 function newSessionModal() {
@@ -567,8 +645,8 @@ function tabPrint() {
   const S = ST.S, s = S.session, bs = brandsOf(), ed = canEdit();
   const cnt = b => { const ls = linesOfBrand(b); return [ls.filter(l => !isBaby(l) && l.section !== 'Expired').length, ls.filter(l => !isBaby(l) && l.section === 'Expired').length, ls.filter(isBaby).length]; };
   $('#tab').innerHTML = `<div class="card"><h3>Who counts which brand</h3><p class="mut small" style="margin-top:0">Counters and checkers work on paper only. Names entered here are printed on their sheets.</p>
-  <div class="tw"><table class="t"><thead><tr><th>Brand</th><th class="num">PN lines to count</th><th>Counter</th><th>Checker</th><th></th></tr></thead><tbody>
-  ${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td><input data-b="${esc(b)}" data-r="c" value="${esc(a.c || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="k" value="${esc(a.k || '')}" ${ed ? '' : 'disabled'}></td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
+  <div class="tw"><table class="t"><thead><tr><th>Brand</th><th class="num">PN lines to count</th><th>Counter</th><th>Checker</th><th>Encoder (tabulator)</th><th></th></tr></thead><tbody>
+  ${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td><input data-b="${esc(b)}" data-r="c" value="${esc(a.c || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="k" value="${esc(a.k || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="e" placeholder="full name" value="${esc(a.e || '')}" ${ed ? '' : 'disabled'}></td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
   </tbody></table></div>
   <div style="margin-top:10px"><label class="small mut">Notes (cut-off / scope)</label><br><textarea id="mNotes" rows="2" style="width:100%" ${ed ? '' : 'disabled'}>${esc(s.notes)}</textarea></div>
   ${ed ? '<div class="row" style="margin-top:8px"><button id="saveMeta">Save names & notes</button></div>' : ''}</div>
@@ -585,7 +663,7 @@ function tabPrint() {
     $('#pvX').onclick = closeModal;
   });
   if ($('#saveMeta')) $('#saveMeta').onclick = async () => {
-    const assign = {}; document.querySelectorAll('input[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value.trim(); });
+    const assign = JSON.parse(JSON.stringify(s.assign || {})); document.querySelectorAll('input[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value.trim(); });
     try { const r = await run('saveMeta', {id:s.id, assign, notes:$('#mNotes').value}); S.session = r; toast('Saved'); } catch (e) {}
   };
   const pb = () => $('#pb').value;
@@ -599,15 +677,16 @@ function tabPrint() {
 
 /* ---------- tab 2: encode ---------- */
 function tabEncode() {
-  const S = ST.S, bs = brandsOf(), ed = canEdit();
+  const S = ST.S, s = S.session, bs = brandsOf(), ed = canEdit();
   const prog = b => { const ls = linesOfBrand(b); return [ls.filter(l => calc(l).st !== 'pending').length, ls.length]; };
-  $('#tab').innerHTML = `<div class="row" style="margin-bottom:10px"><select id="eb">${bs.map(b => { const p = prog(b); return `<option value="${esc(b)}" ${b === S.brand ? 'selected' : ''}>${esc(b)} — ${p[0]}/${p[1]} encoded</option>`; }).join('')}</select>
+  $('#tab').innerHTML = `<div class="row" style="margin-bottom:10px"><select id="eb">${bs.map(b => { const p = prog(b); return `<option value="${esc(b)}" ${b === S.brand ? 'selected' : ''}>${esc(b)} — ${p[0]}/${p[1]} encoded</option>`; }).join('')}</select><input id="eBy" placeholder="Encoded by — full name" title="Full name of the tabulator who encoded this brand" value="${esc((s.assign[S.brand] || {}).e || '')}" style="width:210px" ${ed ? '' : 'disabled'}>
   <input id="eq" placeholder="Search PN, description, serial, lot…" value="${esc(S.q)}" style="width:260px">
   <div class="pills" id="ef">${[['all','All'],['todo','Not encoded'],['diff','Differences']].map(f => `<button data-f="${f[0]}" class="${S.f === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div>
   <span class="sp"></span>${ed ? '<button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
   ${ed ? '<p class="mut small" style="margin:0 0 8px">Type each person’s count from their own paper sheet. Enter <b>0</b> for items counted as zero — blank means “not encoded”. Press Enter to move down. <b>Loose</b> needs a pack size (set it in Items).</p>' : ''}
   <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
-  $('#eb').onchange = e => { S.brand = e.target.value; fillEncode(); };
+  $('#eb').onchange = e => { S.brand = e.target.value; $('#eBy').value = (S.session.assign[S.brand] || {}).e || ''; fillEncode(); };
+  $('#eBy').onchange = async e => { const b = S.brand, as = JSON.parse(JSON.stringify(S.session.assign || {})); as[b] = Object.assign({}, as[b], {e:e.target.value.trim()}); try { const r = await run('saveMeta', {id:S.session.id, assign:as}); S.session = r; toast('Encoder name saved for ' + b); } catch (x) {} };
   $('#eq').oninput = e => { S.q = e.target.value; fillEncode(); };
   document.querySelectorAll('#ef button').forEach(b => b.onclick = () => { S.f = b.dataset.f; document.querySelectorAll('#ef button').forEach(x => x.classList.toggle('on', x === b)); fillEncode(); });
   if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
@@ -754,12 +833,14 @@ function tabReport() {
   ${canSignV || canSignA ? `<button class="pri" id="sgn">Sign as ${ST.user.role}</button><button class="danger" id="ret">Return to encoder</button>` : ''}
   ${isEnc() && s.status === 'Verification' ? '<span class="mut small">Waiting for verifier’s signature</span>' : ''}</div>
   <div class="row" style="align-items:stretch">${sigBox('verifier', 'Verified by')}${sigBox('approver', 'Approved by')}</div>
+  ${soCard()}
   ${babyTable()}
   <h3>Variances (${vl.length})</h3><div class="tw" style="max-height:56vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th><th class="num">Counted</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody>
   ${vl.slice(0, 800).map(l => { const c = calc(l); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${fq(c.total)}</td><td class="num ${c.v < 0 ? 'neg' : 'pos'}">${c.v > 0 ? '+' : ''}${fq(c.v)}</td><td class="num">${N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)}</td><td>${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="mut" style="padding:16px">No variances.</td></tr>'}</tbody></table></div>`;
   $('#rpF').onclick = () => printReport(false); $('#rpA').onclick = () => printReport(true);
   if ($('#rpC')) $('#rpC').onclick = () => printSheets({kind:'confirm', copy:'Both', brand:''});
-  if ($('#sgn')) $('#sgn').onclick = signModal;
+  if ($('#sgn')) $('#sgn').onclick = () => signModal();
+  document.querySelectorAll('button[data-so]').forEach(b => b.onclick = () => signModal({brand:b.dataset.b, role:b.dataset.so}));
   if ($('#ret')) $('#ret').onclick = () => {
     modal(`<h2>Return to encoder</h2><p class="mut small">The count goes back to Review and existing signatures are cleared. Say what needs to be fixed.</p><textarea id="rtN" rows="3" style="width:100%"></textarea><div class="row" style="margin-top:12px"><span class="sp"></span><button id="rtX">Cancel</button><button class="danger" id="rtOK">Return</button></div>`);
     $('#rtX').onclick = closeModal;
@@ -771,11 +852,20 @@ function babyTable() {
   const b = babyIssues(); if (!b.length) return '';
   return `<h3>Baby part discrepancies (${b.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th class="ser">System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${b.map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
-function signModal() {
+function soCard() {
+  const S = ST.S, s = S.session, ed = isEnc() && EDITABLE.indexOf(s.status) >= 0, bs = brandsOf();
+  const cell = (b, role, key) => { const x = S.sigs.find(g => g.role === role && g.brand === b), nm = (s.assign[b] || {})[key] || '';
+    return `<td>${x ? `<img src="${x.image}" style="max-height:34px;display:block"><span class="small">${esc(x.name)}</span>` : `<span class="mut small">${esc(nm) || 'not signed'}</span>`}${ed ? `<div><button class="small" data-so="${role}" data-b="${esc(b)}">${x ? 'Re-sign' : 'Sign'}</button></div>` : ''}</td>`; };
+  return `<div class="card"><h3>Counted by / Encoded by — sign in the app</h3><p class="small mut" style="margin:0 0 8px">Each person types their full name and draws their signature (the wet-ink signature on the paper sheet is still required). Optional but recommended before verification.</p>
+  <div class="tw" style="max-height:30vh"><table class="t"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th><th>Encoded by</th></tr></thead><tbody>${bs.map(b => `<tr><td><b>${esc(b)}</b></td>${cell(b, 'counter', 'c')}${cell(b, 'checker', 'k')}${cell(b, 'encoder', 'e')}</tr>`).join('')}</tbody></table></div></div>`;
+}
+function signModal(so) {
   const role = ST.user.role;
-  modal(`<h2>Sign as ${role}</h2><p class="mut small">${esc(ST.S.session.name)} — draw your signature and enter your PIN to confirm.</p>
+  const cur = so ? (ST.S.session.assign[so.brand] || {})[{counter:'c', checker:'k', encoder:'e'}[so.role]] || '' : '';
+  modal(`<h2>${so ? 'Sign as ' + (so.role === 'encoder' ? 'Encoder' : so.role === 'counter' ? 'Counter' : 'Checker') + ' — ' + esc(so.brand) : 'Sign as ' + role}</h2><p class="mut small">${esc(ST.S.session.name)} — ${so ? 'type your full name and draw your signature.' : 'draw your signature and enter your PIN to confirm.'}</p>
+  ${so ? `<div class="row" style="margin-bottom:8px"><label>Full name</label><input id="soN" value="${esc(cur)}" style="flex:1"></div>` : ''}
   <canvas class="sig" id="cv" width="420" height="150"></canvas><div class="small mut">Draw with mouse, finger or pen.</div>
-  <div class="row" style="margin-top:10px"><label>PIN</label><input id="sgP" type="password" inputmode="numeric" maxlength="8" style="width:120px"><button id="sgC">Clear</button><span class="sp"></span><button id="sgX">Cancel</button><button class="pri" id="sgOK">Sign</button></div>`);
+  <div class="row" style="margin-top:10px">${so ? '' : '<label>PIN</label><input id="sgP" type="password" inputmode="numeric" maxlength="8" style="width:120px">'}<button id="sgC">Clear</button><span class="sp"></span><button id="sgX">Cancel</button><button class="pri" id="sgOK">Sign</button></div>`);
   const cv = $('#cv'), cx = cv.getContext('2d'); cx.lineWidth = 2.2; cx.lineCap = 'round'; cx.strokeStyle = '#111'; let down = false, any = false;
   const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
   cv.onpointerdown = e => { down = true; any = true; const p = pt(e); cx.beginPath(); cx.moveTo(p[0], p[1]); cv.setPointerCapture(e.pointerId); };
@@ -785,7 +875,7 @@ function signModal() {
   $('#sgOK').onclick = async () => {
     if (!any) return toast('Please draw your signature', true);
     const tmp = document.createElement('canvas'); tmp.width = 300; tmp.height = 107; const t = tmp.getContext('2d'); t.fillStyle = '#fff'; t.fillRect(0, 0, 300, 107); t.drawImage(cv, 0, 0, 300, 107);
-    try { const r = await run('sign', {id:ST.S.session.id, pin:$('#sgP').value, image:tmp.toDataURL('image/png')}); closeModal(); const g = await run('getSession', {id:r.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast('Signed'); } catch (e) {}
+    try { const r = so ? await run('signOff', {id:ST.S.session.id, brand:so.brand, role:so.role, name:$('#soN').value, image:tmp.toDataURL('image/png')}) : await run('sign', {id:ST.S.session.id, pin:$('#sgP').value, image:tmp.toDataURL('image/png')}); closeModal(); const g = await run('getSession', {id:r.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast('Signed'); } catch (e) {}
   };
 }
 
@@ -805,7 +895,7 @@ function renderPre() {
   ${s.status === 'Submitted' && !enc ? '<div class="note">Submitted and signed. Thank you.</div>' : ''}
   ${s.status === 'Applied' ? '<div class="note">This pre-count has been applied to the item master.</div>' : ''}
   <div class="row" style="margin:10px 0"><select id="pB">${bs.map(b => `<option ${b === PRE.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><input id="pQ" placeholder="Search PN / description / serial / lot" value="${esc(PRE.q)}" style="min-width:240px"><span class="sp"></span>${ed ? '<button id="pAdd">+ Add serial / lot row</button><button id="pNew">+ New item not on the list</button>' : ''}</div>
-  <div class="tw" style="max-height:70vh"><table class="t pre"><thead><tr><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial no.</th><th>Lot no.</th><th>Expiry</th><th>Location</th><th class="num">Full<div class="small mut">sealed UOM</div></th><th class="num">Loose<div class="small mut">qty</div></th><th>Loose in<div class="small mut">unit</div></th><th>Remarks</th></tr></thead><tbody id="pBody"></tbody></table></div><datalist id="luL">${['pc','tests','vial','bottle','box','kit','pack','unit','ml','set'].map(u => `<option>${u}</option>`).join('')}</datalist>
+  <div class="tw" style="max-height:70vh"><table class="t pre"><thead><tr><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial no.</th><th>Lot no.</th><th>Expiry</th><th>Location</th><th class="num">Full<div class="small mut">sealed UOM</div></th><th class="num">Loose<div class="small mut">qty</div></th><th>Loose in<div class="small mut">unit</div></th><th>Remarks</th><th>Reason if you changed Type / PN / Description / UOM</th></tr></thead><tbody id="pBody"></tbody></table></div><datalist id="uomL2">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist><datalist id="luL">${['pc','tests','vial','bottle','box','kit','pack','unit','ml','set'].map(u => `<option>${u}</option>`).join('')}</datalist>
   <p class="small mut">Full = sealed units (box, kit, bottle…). Loose = loose pieces inside an opened pack. Change serial, lot, expiry or location if the label differs. “+ Add serial / lot row” adds another lot of the same part; “+ New item” is for items not on the list.</p>`;
   $('#bk').onclick = async () => { if (await leaveOk()) { ST.S = null; render(); } };
   $('#pB').onchange = e => { PRE.brand = e.target.value; fillPre(); };
@@ -823,11 +913,16 @@ async function refreshLinks() {
   if (!(await leaveOk())) return;
   try { const r = await run('refreshLinks', {id:ST.S.session.id}); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:ST.S.session.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast(r.changed ? `${r.changed} line(s) updated with mother/baby links` : 'Links already up to date'); } catch (e) {}
 }
+const origOf = l => { try { return JSON.parse(l.orig || '{}'); } catch (e) { return {}; } };
+const chgOf = l => { if (!l.orig || l.isExtra) return []; const o = origOf(l); return ['pn', 'desc', 'uom', 'category'].filter(k => String(o[k] == null ? '' : o[k]).trim() !== String(l[k] == null ? '' : l[k]).trim()); };
 function preInput(e) {
   const t = e.target, id = t.dataset.l, f = t.dataset.f; if (!id || !f) return;
   const l = ST.S.map[id]; if (!l) return;
   l[f] = (f === 'cF' || f === 'cL') ? (t.value === '' ? '' : Number(t.value)) : t.value;
   markDirty(id);
+  if (['pn', 'desc', 'uom', 'category', 'changeReason'].indexOf(f) >= 0) { const ch = chgOf(l), tr = t.closest('tr'), ri = tr && tr.querySelector('[data-f=changeReason]');
+    if (tr && !l.isExtra) tr.classList.toggle('chg', ch.length > 0);
+    if (ri) { ri.style.borderColor = ch.length && !String(l.changeReason || '').trim() ? '#c0392b' : ''; ri.placeholder = ch.length ? 'REQUIRED — why?' : 'only if changed'; } }
 }
 function fillPre() {
   const S = ST.S, ed = preOpen(), q = PRE.q.trim().toLowerCase();
@@ -843,11 +938,12 @@ function fillPre() {
       : `<td class="num">${ed ? `<input class="q" type="number" min="0" step="any" inputmode="decimal" data-l="${esc(l.lineId)}" data-f="cF" value="${l.cF === '' ? '' : l.cF}">` : fq(N(l.cF))}</td>
     <td class="num">${ed ? `<input class="q" type="number" min="0" step="any" inputmode="decimal" data-l="${esc(l.lineId)}" data-f="cL" value="${l.cL === '' ? '' : l.cL}">` : fq(N(l.cL))}</td>
     <td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="looseUom" list="luL" placeholder="e.g. pc" value="${esc(l.looseUom)}" style="min-width:60px;width:80px">` : esc(l.looseUom)}</td>`;
-    return `<tr class="${x ? 'xr' : ''}" ${baby ? 'style="background:#f6f7fb"' : ''}><td>${baby ? '↳' : esc(CAT_SHORT[l.category] || l.category)}${x ? ' <span class="badge b-warn">new</span>' : ''}</td>
-    <td>${baby ? '↳ ' : ''}${x && ed ? inp(l, 'pn') : esc(l.pn)}</td><td class="wr">${x && ed ? inp(l, 'desc') : esc(l.desc)}${baby ? `<div class="small mut">baby part of ${esc(m ? m.pn : '')} — do not count, check only</div>` : ''}</td><td>${x && ed ? inp(l, 'uom') : esc(l.uom)}</td>
+    const ch = chgOf(l);
+    return `<tr data-row="${esc(l.lineId)}" class="${x ? 'xr' : (ch.length ? 'chg' : '')}" ${baby ? 'style="background:#f6f7fb"' : ''}><td>${baby ? '↳ ' : ''}${ed ? `<select data-l="${esc(l.lineId)}" data-f="category"><option value=""></option>${CATS.map(c => `<option ${l.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select>` : esc(CAT_SHORT[l.category] || l.category)}${x ? ' <span class="badge b-warn">new</span>' : ''}</td>
+    <td>${ed ? inp(l, 'pn') : esc(l.pn)}</td><td class="wr">${ed ? inp(l, 'desc') : esc(l.desc)}${baby ? `<div class="small mut">baby part of ${esc(m ? m.pn : '')} — do not count, check only</div>` : ''}</td><td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="uom" list="uomL2" style="min-width:60px;width:80px" value="${esc(l.uom)}">` : esc(l.uom)}</td>
     <td>${inp(l, 'serial')}</td><td>${inp(l, 'lot')}</td>
     <td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="expiry" type="${d ? 'date' : 'text'}" value="${esc(l.expiry)}">` : esc(l.expiry)}</td><td>${inp(l, 'location')}</td>
-    ${qty}<td class="wr">${inp(l, 'remarks')}</td></tr>`; }).join('') || '<tr><td colspan="12" class="mut" style="padding:14px">No lines.</td></tr>';
+    ${qty}<td class="wr">${inp(l, 'remarks')}</td><td class="wr">${x ? '' : (ed ? `<input data-l="${esc(l.lineId)}" data-f="changeReason" placeholder="${ch.length ? 'REQUIRED — why?' : 'only if changed'}" value="${esc(l.changeReason || '')}" style="${ch.length && !String(l.changeReason || '').trim() ? 'border-color:#c0392b;' : ''}min-width:180px">` : esc(l.changeReason || ''))}${ch.length ? `<div class="small mut">was: ${ch.map(k => esc(origOf(l)[k] || '—')).join(' / ')}</div>` : ''}</td></tr>`; }).join('') || '<tr><td colspan="13" class="mut" style="padding:14px">No lines.</td></tr>';
 }
 function preAddModal(isNew) {
   const S = ST.S, bs = [...new Set(S.lines.map(l => l.brand))].sort(), cur = S.lines.filter(l => l.brand === PRE.brand && !l.isExtra);
@@ -872,7 +968,7 @@ function printPre(all) {
   const kd = {}; S.lines.filter(isBaby).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
   const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)))
     .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
-  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td>${esc(l.serial)}</td><td>${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>${isBaby(l) ? `<td colspan="2">${l.babyOk === 'Y' ? '✓ present' : (l.babyOk === 'M' ? 'NOT PRESENT (0)' : '')}</td>` : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}${N(l.cL) != null && l.looseUom ? ' ' + esc(l.looseUom) : ''}</td>`}<td>${l.isExtra ? 'NEW ITEM ' : ''}${esc(l.remarks)}</td></tr>`;
+  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td>${esc(l.serial)}</td><td>${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>${isBaby(l) ? `<td colspan="2">${l.babyOk === 'Y' ? '✓ present' : (l.babyOk === 'M' ? 'NOT PRESENT (0)' : '')}</td>` : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}${N(l.cL) != null && l.looseUom ? ' ' + esc(l.looseUom) : ''}</td>`}<td>${l.isExtra ? 'NEW ITEM ' : ''}${esc(l.remarks)}${chgOf(l).length ? ` <b>CHANGED (was ${chgOf(l).map(k => esc(origOf(l)[k] || '—')).join(' / ')}):</b> ${esc(l.changeReason)}` : ''}</td></tr>`;
   doPrint(`<div class="sheet"><h2>Logistics pre-count — ${esc(s.name)}</h2><table class="ps"><thead><tr><th>Brand</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial</th><th>Lot</th><th>Expiry</th><th>Location</th><th>Full</th><th>Loose</th><th>Remarks</th></tr></thead><tbody>${ls.map(row).join('')}</tbody></table>
   <div class="sg"><div>${sg && sg.image ? `<img src="${sg.image}">` : ''}Logistics: ${esc(sg ? sg.name : '')} ${sg ? esc(String(sg.signedAt || '').slice(0, 10)) : ''}</div><div>Signature (wet ink)</div></div></div>`, 'pre-count');
 }
@@ -920,7 +1016,7 @@ function sheetHtml(b, kind, copy) {
     : (kind === 'confirm' ? `${copy} — signature (wet ink): ${line} &nbsp; Name: ${esc(who || '____________')} &nbsp; Date: ____________`
     : `<b>${copy} — signature (wet ink) on EVERY page:</b> ${line} &nbsp; Name: ${esc(who || '____________')} &nbsp; Date &amp; time: ____________`);
   const foot = kind === 'pre' ? `<div class="sg"><div>Prepared by (Tabulator) / Date</div><div>Checked by / Date</div></div>`
-    : (kind === 'confirm' ? `<p style="margin:8px 0 0">I confirm that the quantities above, as encoded in the system, match my count sheet.</p><div class="sg"><div>${esc(who || '')}<br>${copy} — Signature / Date</div><div>Encoder / Date</div></div>`
+    : (kind === 'confirm' ? `<p style="margin:8px 0 0">I confirm that the quantities above, as encoded in the system, match my count sheet.</p><div class="sg"><div>${esc(who || '')}<br>${copy} — Signature / Date</div><div>Encoded by: <b>${esc(a.e || '')}</b><br>Encoder — Signature / Date</div></div>`
     : `<div class="sg"><div>${copy} name: ${esc(who || '')}<br>Signature / Date &amp; time</div><div>Counting started / finished</div><div>Received by Tabulator / Date</div></div>`);
   const W = kind === 'pre' ? [3,8,4,10,21,5,16,10,8,9,6] : [3,8,4,9,17,5,14,9,7,8,5,4,7];
   return `<section class="sheet"><table class="ps"><colgroup>${W.map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead><tr><td class="ttl" colspan="${cols}">${title}</td></tr><tr><td class="inf" colspan="${cols}"><b>${esc(s.name)}</b> · Session ${esc(s.id)} · Count date ${esc(s.date)} · <b>Brand: ${esc(b)}</b> · Counter: ${esc(a.c || '__________')} · Checker: ${esc(a.k || '__________')} · Type: Eqpt=Equipment, Rgt=Reagent, Cons=Plastic consumable, Accy=Accessory, Parts=Spare parts, Lic-SW=Licensed software${hasBaby && kind !== 'pre' ? ' · <b>↳ = baby part of the item above: DO NOT COUNT. Tick “correct”, or write the actual PN / serial / lot / expiry.</b>' : ''}</td></tr><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td class="sf" colspan="${cols}">${pageSig}</td></tr></tfoot></table>${foot}</section>`;
@@ -930,7 +1026,7 @@ function printSheets(o) {
   if (o.kind === 'pre') {
     h += `<section class="sheet"><h2>PRE-COUNT CHECKLIST &amp; CONTROL SUMMARY — ${esc(s.name)}</h2><p>Session ${esc(s.id)} · Count date ${esc(s.date)}</p>${s.notes ? `<p><b>Notes:</b> ${esc(s.notes)}</p>` : ''}
     <ul style="list-style:none;padding:0">${['Receiving, deliveries, reservations and stock transfers are frozen for the count', 'Last DR no.: ____________   Last receiving / GRN no.: ____________', 'Damaged, defective and for-return items set aside and labelled', 'Items on loan / demo / for repair are listed and accounted for separately', 'Count areas tidied; items grouped by PN / lot; opened boxes identified', 'Counters and checkers briefed — counters and checkers must count independently', 'Count sheets pre-numbered and issued; unused sheets to be returned'].map(x => `<li>☐ ${x}</li>`).join('')}</ul>
-    <table><thead><tr><th>Brand</th><th>Lines</th><th>Counter</th><th>Checker</th><th>Sheets issued (Date / Time)</th></tr></thead><tbody>${brandsOf().map(b => { const a = s.assign[b] || {}; return `<tr><td>${esc(b)}</td><td>${linesOfBrand(b).filter(l => !isBaby(l)).length}</td><td>${esc(a.c || '')}</td><td>${esc(a.k || '')}</td><td class="w"></td></tr>`; }).join('')}</tbody></table>
+    <table><thead><tr><th>Brand</th><th>Lines</th><th>Counter</th><th>Checker</th><th>Encoder</th><th>Sheets issued (Date / Time)</th></tr></thead><tbody>${brandsOf().map(b => { const a = s.assign[b] || {}; return `<tr><td>${esc(b)}</td><td>${linesOfBrand(b).filter(l => !isBaby(l)).length}</td><td>${esc(a.c || '')}</td><td>${esc(a.k || '')}</td><td>${esc(a.e || '')}</td><td class="w"></td></tr>`; }).join('')}</tbody></table>
     <div class="sg"><div>Prepared by / Date</div><div>Approved by / Date</div></div></section>`;
     if (o.brand) h = '';
   }
@@ -946,14 +1042,15 @@ function printSheets(o) {
 }
 function printReport(full) {
   const S = ST.S, s = S.session, sm = summary(), sig = r => S.sigs.find(x => x.role === r), vl = full ? S.lines.slice().sort((a, b) => a.brand.localeCompare(b.brand) || String(a.pn).localeCompare(String(b.pn))) : varLines();
-  const asg = Object.keys(s.assign).sort().map(b => `<tr><td>${esc(b)}</td><td>${esc(s.assign[b].c || '')}</td><td>${esc(s.assign[b].k || '')}</td></tr>`).join('');
+  const asg = Object.keys(s.assign).sort().map(b => `<tr><td>${esc(b)}</td><td>${esc(s.assign[b].c || '')}</td><td>${esc(s.assign[b].k || '')}</td><td>${esc(s.assign[b].e || '')}</td></tr>`).join('');
   const sg = (r, lab) => { const x = sig(r); return `<div>${x ? `<img src="${x.image}">${esc(x.name)}<br>` : ''}${lab}${x ? ' · e-signed ' + new Date(x.signedAt).toLocaleString() : ''}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>`; };
   doPrint(`<section class="sheet"><table><thead><tr><td class="ttl" colspan="12">PHYSICAL COUNT ${full ? 'RESULTS' : 'VARIANCE REPORT'} — ${esc(s.name)}</td></tr><tr><td class="inf" colspan="12">Session ${esc(s.id)} · Count date ${esc(s.date)} · Status: <b>${esc(s.status)}</b> · Lines: ${sm.lines} · Lines with variance: ${sm.varLines} · Shortage ${peso(sm.short)} · Overage ${peso(sm.over)} · <b>Net ${peso(sm.net)}</b></td></tr>
   <tr><th>Brand</th><th>Part No.</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th>System</th><th>Counter</th><th>Checker</th><th>Final</th><th>Variance</th><th>Value</th><th>Reason / Remarks</th></tr></thead><tbody>
   ${vl.map(l => { const c = calc(l), cn = N(l.cF) == null ? '' : fq(tot(l.cF, l.cL, N(l.packSize) || 0)), kn = N(l.kF) == null ? '' : fq(tot(l.kF, l.kL, N(l.packSize) || 0)); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td style="text-align:right">${fq(c.sys)}</td><td style="text-align:right">${cn}</td><td style="text-align:right">${kn}</td><td style="text-align:right">${c.total != null ? fq(c.total) : ''}</td><td style="text-align:right">${c.v ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td style="text-align:right">${c.v && N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)} ${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="12">No variances.</td></tr>'}</tbody></table>
   ${babyIssues().length ? `<p style="margin-top:10px"><b>Baby part discrepancies</b></p><table><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th>System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${babyIssues().map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' : ''}${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table>` : ''}
-  <p style="margin-top:10px"><b>Counters / checkers</b></p><table style="width:60%"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th></tr></thead><tbody>${asg}</tbody></table>
-  <div class="sg"><div>Prepared by (Tabulator): ${esc(s.createdBy)}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>${sg('verifier', 'Verified by')}${sg('approver', 'Approved by')}</div></section>`, `${s.name} — ${full ? 'results' : 'variance report'}`);
+  <p style="margin-top:10px"><b>Counters / checkers</b></p><table style="width:60%"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th><th>Encoded by</th></tr></thead><tbody>${asg}</tbody></table>
+  <div class="sg"><div><b>Counted by</b> (Counter / Checker)<br>${Object.keys(s.assign).sort().map(b => `${esc(b)}: ${esc([s.assign[b].c, s.assign[b].k].filter(Boolean).join(' / '))} ${S.sigs.filter(g => g.brand === b && (g.role === 'counter' || g.role === 'checker')).map(g => `<img src="${g.image}" style="height:22px;vertical-align:middle">`).join('')}`).join('<br>')}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>
+  <div><b>Encoded by</b> (Tabulator)<br>${[...new Set(Object.keys(s.assign).map(b => s.assign[b].e).filter(Boolean))].map(esc).join(', ')} ${S.sigs.filter(g => g.role === 'encoder').map(g => `<img src="${g.image}" style="height:22px;vertical-align:middle">`).join('')}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>${sg('verifier', 'Verified by')}${sg('approver', 'Approved by')}</div></section>`, `${s.name} — ${full ? 'results' : 'variance report'}`);
 }
 
 /* ---------- items ---------- */
