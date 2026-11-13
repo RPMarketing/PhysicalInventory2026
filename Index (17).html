@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RainPhil Physical Count</title>
+<style>
+:root{--ink:#1d2433;--mut:#6b7385;--line:#dfe3ec;--bg:#f4f6fa;--pri:#1f5fbf;--pri2:#e8f0fc;--ok:#1e7d4b;--okbg:#e4f5ec;--warn:#a05a00;--warnbg:#fff1dc;--bad:#b3261e;--badbg:#fde8e6}
+*{box-sizing:border-box}body{margin:0;font:14px/1.4 -apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--ink);background:var(--bg)}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:6px;padding:6px 12px;color:var(--ink)}
+button:hover{background:#f0f3f9}button.pri{background:var(--pri);border-color:var(--pri);color:#fff}button.pri:hover{background:#184f9f}
+button.danger{color:var(--bad);border-color:#efb8b4}button:disabled{opacity:.45;cursor:not-allowed}
+input,select,textarea{font:inherit;border:1px solid #c9cfdc;border-radius:6px;padding:5px 8px;background:#fff;color:var(--ink);max-width:100%}
+input:focus,select:focus,textarea:focus{outline:2px solid #9ec0f5;border-color:var(--pri)}
+input:disabled,select:disabled{background:#f1f3f7;color:#8a90a0}
+header.top{display:flex;align-items:center;gap:16px;padding:10px 20px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+header.top h1{font-size:16px;margin:0}header.top nav{display:flex;gap:4px;flex:1}
+header.top nav button{border:0;background:none;padding:6px 12px;border-radius:6px}header.top nav button.on{background:var(--pri2);color:var(--pri);font-weight:600}
+.who{color:var(--mut);font-size:13px}.who b{color:var(--ink)}
+main{padding:18px 20px;max-width:1500px;margin:0 auto}
+.card{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+h2{font-size:18px;margin:0 0 10px}h3{font-size:15px;margin:0 0 8px}.mut{color:var(--mut)}.small{font-size:12px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sp{flex:1}
+table.t{border-collapse:collapse;width:100%;background:#fff}
+table.t th{position:sticky;top:0;background:#eef1f7;text-align:left;font-size:12px;padding:6px 8px;border-bottom:1px solid var(--line);z-index:5;white-space:nowrap}
+table.t td{padding:4px 8px;border-bottom:1px solid #edf0f5;vertical-align:middle}
+table.t tr:hover td{background:#fafbfe}
+.tw{overflow:auto;border:1px solid var(--line);border-radius:10px;background:#fff}
+td.num,th.num{text-align:right}td.ser,th.ser{min-width:150px;overflow-wrap:anywhere}td.lot{min-width:90px;overflow-wrap:anywhere}td input.q{width:70px;text-align:right}
+.badge{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;background:#eef1f7;color:#445}
+.b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}.b-bad{background:var(--badbg);color:var(--bad)}.b-pri{background:var(--pri2);color:var(--pri)}
+.steps{display:flex;gap:0;margin:10px 0 4px;flex-wrap:wrap}
+.steps div{padding:5px 14px;background:#e9edf4;color:var(--mut);font-size:12px;border-right:2px solid #fff}
+.steps div.done{background:#cfe3d8;color:#245}.steps div.cur{background:var(--pri);color:#fff;font-weight:600}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.tabs button{border:0;border-bottom:3px solid transparent;border-radius:0;background:none;padding:8px 14px}.tabs button.on{border-color:var(--pri);color:var(--pri);font-weight:600}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.stat{background:#fff;border:1px solid var(--line);border-radius:10px;padding:10px 14px}.stat b{display:block;font-size:22px}.stat span{font-size:12px;color:var(--mut)}
+.pills{display:flex;gap:6px;flex-wrap:wrap}.pills button{border-radius:20px;padding:3px 12px;font-size:13px}.pills button.on{background:var(--pri);color:#fff;border-color:var(--pri)}
+#modal{position:fixed;inset:0;background:rgba(20,28,45,.45);display:none;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto;z-index:50}
+#modal .box{background:#fff;border-radius:12px;padding:20px;width:min(720px,100%);box-shadow:0 12px 40px rgba(0,0,0,.25)}
+#modal .box.wide{width:min(980px,100%)}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}.fg label{display:block;font-size:12px;color:var(--mut);margin-bottom:2px}.fg input,.fg select,.fg textarea{width:100%}
+#toast{position:fixed;right:18px;bottom:18px;z-index:80;display:flex;flex-direction:column;gap:8px}
+#toast div{background:#1d2433;color:#fff;padding:9px 14px;border-radius:8px;max-width:420px}#toast div.err{background:var(--bad)}
+#busy{position:fixed;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--pri),#8fb6f2);display:none;z-index:99}
+.login{max-width:380px;margin:12vh auto}.login .card{padding:24px}.login input,.login select{width:100%;margin-bottom:10px}
+.brandlist{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:4px 10px;max-height:240px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}
+.brandlist label{display:flex;gap:6px;align-items:center;font-size:13px}
+.note{background:var(--warnbg);color:var(--warn);padding:8px 12px;border-radius:8px;margin-bottom:12px}
+.chip{display:inline-block;background:var(--badbg);color:var(--bad);border-radius:8px;padding:0 6px;font-size:11px;margin:1px}
+canvas.sig{border:1px dashed #9aa3b8;border-radius:8px;background:#fff;touch-action:none;width:100%;max-width:420px;height:150px}
+.demo{background:#fff6d6;color:#7a5b00;text-align:center;font-size:12px;padding:4px}
+td.st{white-space:nowrap;font-size:12px;font-weight:600}.st-m{color:var(--ok)}.st-x{color:var(--warn)}.st-p{color:#9aa3b8}.st-r{color:var(--pri)}
+.neg{color:var(--bad)}.pos{color:var(--ok)}
+#printArea{display:none}
+@media print{
+  body>*:not(#printArea){display:none!important}
+  body{background:#fff}#printArea{display:block}
+  @page{size:A4 landscape;margin:9mm 9mm 12mm 9mm;@bottom-right{content:"Page " counter(page) " of " counter(pages);font-size:8pt}}
+  .sheet{page-break-before:always}.sheet:first-child{page-break-before:auto}
+}
+#printArea{font:9pt/1.25 Arial,Helvetica,sans-serif;color:#000}
+#printArea table{border-collapse:collapse;width:100%}#printArea table.ps{table-layout:fixed}#printArea table.ps td,#printArea table.ps th{overflow-wrap:anywhere;word-break:break-word}#printArea th,#printArea td{border:1px solid #444;padding:2px 4px;vertical-align:top}
+#printArea th{background:#e6e6e6;font-size:8pt}#printArea thead td.ttl{border:0;font-size:12pt;font-weight:bold;padding:0 0 3px}
+#printArea thead td.inf{border:0;padding:1px 0 4px;font-size:8.5pt}
+#printArea tr{page-break-inside:avoid}#printArea tr.bb td{background:#f2f2f2}#printArea td.w{height:20px}#printArea tr.grp td{background:#f0d9d6;font-weight:bold;text-align:center}
+#printArea .sg{display:flex;gap:28px;margin-top:14px;page-break-inside:avoid}#printArea .sg>div{flex:1;border-top:1px solid #000;padding-top:3px;font-size:8.5pt;min-height:50px}#printArea td.sf{border:0;border-top:1.5px solid #000;padding:12px 0 0;font-size:9pt}#printArea tfoot{display:table-footer-group}
+#printArea .sg img{max-height:46px;display:block;margin-bottom:2px}
+#printArea h2{font-size:14pt;margin:0 0 6px}#printArea ul{margin:4px 0 10px;padding-left:18px}#printArea li{margin:3px 0}
+
+table.pre input{field-size:auto;field-sizing:content;min-width:70px;max-width:300px}table.pre td{white-space:nowrap}table.pre td.wr{white-space:normal;min-width:160px}table.pre input.q{width:70px;min-width:70px}
+table.pre tr.xr td{background:#fffbe9}table.pre tr.chg td{background:#eef6ff}
+@media(max-width:700px){main{padding:10px}header.top{flex-wrap:wrap;gap:6px}}
+#pvBar{position:fixed;top:0;left:0;right:0;height:50px;background:#1d2433;color:#fff;display:none;align-items:center;gap:10px;padding:0 16px;z-index:70}
+#pvBar b{flex:1;font-weight:600}#pvBar button{background:#fff}#pvBar button.pri{background:var(--pri);color:#fff;border-color:var(--pri)}
+body.preview{overflow:hidden}
+body.preview #printArea{display:block;position:fixed;inset:0;top:50px;background:#d9dde6;overflow:auto;padding:18px;z-index:60;font-size:10pt}
+body.preview .sheet{background:#fff;width:1120px;max-width:none;margin:0 auto 18px;padding:18px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+@media print{
+  body.preview #printArea{position:static;overflow:visible;background:#fff;padding:0;font-size:9pt}
+  body.preview .sheet{box-shadow:none;width:auto;margin:0;padding:0}
+}
+</style></head>
+<body>
+<div id="pvBar"><b id="pvT">Preview</b><span class="small" style="opacity:.8">Paper: A4 landscape (already set)</span><button id="pvPrint" class="pri">Print…</button><button id="pvSave">Save as file</button><button id="pvClose">Close preview</button></div>
+<div id="busy"></div><div id="app"></div><div id="modal"></div><div id="toast"></div><div id="printArea"></div>
+<script>/* ===== RainCount core (shared by Apps Script backend and the demo/mock page) =====
+   Pure logic: authentication, roles, status flow, signatures. Storage is supplied by an adapter `db`. */
+var ITEM_FIELDS = ['id','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','sysQty','asOf','unitPrice','notes','section','source','flags','active','motherId'];
+var LINE_FIELDS = ['lineId','itemId','brand','category','pn','desc','serial','lot','expiry','uom','looseUom','packSize','location','storage','section','sysQty','unitPrice','isExtra','cF','cL','kF','kL','rF','rL','recountBy','reason','remarks','motherId','babyOk'];
+var SESSION_FIELDS = ['id','name','date','status','brands','includeExpired','notes','assign','createdBy','createdAt','returnNote','lineCount','kind'];
+var USER_FIELDS = ['name','role','salt','pinHash','active'];
+var SIG_FIELDS = ['sessionId','role','name','signedAt','image'];
+var LOG_FIELDS = ['time','user','action','detail'];
+var STATUSES = ['Draft','Counting','Encoding','Review','Verification','Approval','Approved'];
+var EDITABLE = ['Draft','Counting','Encoding','Review'];
+var ENC_FLOW = {Draft:['Counting'],Counting:['Draft','Encoding'],Encoding:['Counting','Review'],Review:['Encoding','Verification'],Verification:['Review']};
+
+function core(db, req) {
+  try { return {ok:true, data: route(db, req || {})}; }
+  catch (e) { return {ok:false, error: String((e && e.message) || e)}; }
+}
+function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
+function numOrBlank(v) { if (v === '' || v === null || v === undefined) return ''; var n = Number(v); return isNaN(n) ? '' : n; }
+function toJson(v, d) { if (typeof v !== 'string') return v == null ? d : v; try { return JSON.parse(v); } catch (e) { return d; } }
+function sessionOut(s) {
+  return {id:s.id, name:s.name, date:s.date, status:s.status, brands:toJson(s.brands, []), includeExpired:s.includeExpired === true || s.includeExpired === 'TRUE' || s.includeExpired === 'true' || s.includeExpired === 'Y',
+          kind:s.kind === 'pre' ? 'pre' : 'count', notes:s.notes || '', assign:toJson(s.assign, {}), createdBy:s.createdBy, createdAt:s.createdAt, returnNote:s.returnNote || '', lineCount:Number(s.lineCount) || 0};
+}
+function findSession(db, id) {
+  var all = db.all('Sessions');
+  for (var i = 0; i < all.length; i++) if (String(all[i].id) === String(id)) return all[i];
+  throw new Error('Session not found');
+}
+function auth(db, token) {
+  var raw = token ? db.cacheGet('t_' + token) : null;
+  if (!raw) throw new Error('SESSION_EXPIRED');
+  return JSON.parse(raw);
+}
+function need(u, roles) { if (roles.indexOf(u.role) < 0) throw new Error('Your role (' + u.role + ') is not allowed to do this'); }
+function log(db, u, action, detail) { db.append('Log', [{time:db.now(), user:u.name, action:action, detail:detail || ''}]); }
+function findUser(db, name) {
+  var us = db.all('Users'), n = String(name || '').trim().toLowerCase();
+  for (var i = 0; i < us.length; i++) if (String(us[i].name).trim().toLowerCase() === n) return us[i];
+  return null;
+}
+function checkPin(db, user, pin) { return user && user.active !== 'N' && db.hashPin(String(pin || ''), user.salt) === user.pinHash; }
+
+function route(db, req) {
+  var a = req.action, d = req.data || {};
+  if (a === 'names') return db.all('Users').filter(function (u) { return u.active !== 'N'; }).map(function (u) { return u.name; });
+  if (a === 'login') {
+    var fk = 'f_' + String(d.name || '').toLowerCase(), fails = Number(db.cacheGet(fk) || 0);
+    if (fails >= 5) throw new Error('Too many wrong PINs. Wait 10 minutes and try again.');
+    var user = findUser(db, d.name);
+    if (!checkPin(db, user, d.pin)) { db.cachePut(fk, String(fails + 1), 600); throw new Error('Wrong name or PIN'); }
+    var token = db.uuid();
+    db.cachePut('t_' + token, JSON.stringify({name:user.name, role:user.role}), 21600);
+    return {token:token, user:{name:user.name, role:user.role}};
+  }
+  var u = auth(db, req.token);
+  switch (a) {
+    case 'bootstrap': {
+      if (u.role === 'logistics') return {user:u, items:[], users:[], sessions:db.all('Sessions').map(sessionOut).filter(function (s) { return s.kind === 'pre' && (s.status === 'Open' || s.status === 'Submitted'); })};
+      return {user:u, items:db.all('Items'), sessions:db.all('Sessions').map(sessionOut),
+              users:u.role === 'encoder' ? db.all('Users').map(function (x) { return {name:x.name, role:x.role, active:x.active === 'N' ? 'N' : 'Y'}; }) : []};
+    }
+    case 'saveItem': {
+      need(u, ['encoder']);
+      var it = d.item || {};
+      if (!it.brand) throw new Error('Brand is required');
+      if (!it.id) it.id = 'ITM' + Date.now().toString(36).toUpperCase();
+      it.sysQty = numOrBlank(it.sysQty); it.unitPrice = numOrBlank(it.unitPrice); it.packSize = numOrBlank(it.packSize);
+      db.upsert('Items', 'id', [it]);
+      log(db, u, 'saveItem', it.id + ' ' + (it.pn || it.desc));
+      return it;
+    }
+    case 'importItems': {
+      need(u, ['encoder']);
+      var rows = (d.items || []).map(function (r) { r.sysQty = numOrBlank(r.sysQty); r.unitPrice = numOrBlank(r.unitPrice); r.packSize = numOrBlank(r.packSize); return r; });
+      if (d.mode === 'replace' && d.first) db.replace('Items', []);
+      db.append('Items', rows);
+      log(db, u, 'importItems', (d.mode || 'append') + ' +' + rows.length);
+      return {added:rows.length};
+    }
+    case 'saveUser': {
+      need(u, ['encoder']);
+      var nm = String(d.name || '').trim(), role = d.role;
+      if (!nm) throw new Error('Name is required');
+      if (['encoder', 'verifier', 'approver', 'logistics'].indexOf(role) < 0) throw new Error('Role must be encoder, verifier, approver or logistics');
+      var ex = findUser(db, nm), rec;
+      if (ex) {
+        rec = ex; rec.role = role; rec.active = d.active === 'N' ? 'N' : 'Y';
+        if (d.pin) { if (!/^\d{4,8}$/.test(d.pin)) throw new Error('PIN must be 4-8 digits'); rec.salt = db.uuid(); rec.pinHash = db.hashPin(String(d.pin), rec.salt); }
+      } else {
+        if (!/^\d{4,8}$/.test(d.pin || '')) throw new Error('PIN must be 4-8 digits');
+        var salt = db.uuid();
+        rec = {name:nm, role:role, salt:salt, pinHash:db.hashPin(String(d.pin), salt), active:'Y'};
+      }
+      var after = db.all('Users').filter(function (x) { return x.name !== rec.name; }).concat([rec]);
+      if (!after.some(function (x) { return x.role === 'encoder' && x.active !== 'N'; })) throw new Error('At least one active encoder is required');
+      db.upsert('Users', 'name', [rec]);
+      log(db, u, 'saveUser', nm + ' (' + role + ')');
+      return {name:rec.name, role:rec.role, active:rec.active};
+    }
+    case 'createSession': {
+      need(u, ['encoder']);
+      var brands = d.brands || [];
+      if (!d.name || !brands.length) throw new Error('Session name and at least one brand are required');
+      var items = db.all('Items').filter(function (i) {
+        return i.active !== 'N' && brands.indexOf(i.brand) >= 0 && (i.section !== 'Expired' || d.includeExpired);
+      });
+      if (!items.length) throw new Error('No items found for the selected brands');
+      var kind = d.kind === 'pre' ? 'pre' : 'count';
+      var sid = (kind === 'pre' ? 'P' : 'S') + db.now().slice(0, 10).replace(/-/g, '') + '-' + pad(Math.floor(Math.random() * 1000), 3);
+      var lines = items.map(function (i, n) {
+        return {lineId:sid + '-' + pad(n + 1, 5), itemId:i.id, brand:i.brand, category:i.category, pn:i.pn, desc:i.desc, serial:i.serial, lot:i.lot, expiry:i.expiry, uom:i.uom,
+                looseUom:i.looseUom || '', packSize:numOrBlank(i.packSize), location:i.location, storage:i.storage, section:i.section || 'Active', sysQty:numOrBlank(i.sysQty), unitPrice:numOrBlank(i.unitPrice),
+                isExtra:'', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:i.motherId || '', babyOk:''};
+      });
+      db.createLines(sid, lines);
+      var srow = {id:sid, name:d.name, date:d.date || db.now().slice(0, 10), status:kind === 'pre' ? 'Open' : 'Draft', kind:kind, brands:JSON.stringify(brands), includeExpired:d.includeExpired ? 'Y' : '',
+                  notes:d.notes || '', assign:'{}', createdBy:u.name, createdAt:db.now(), returnNote:'', lineCount:lines.length};
+      db.append('Sessions', [srow]);
+      log(db, u, 'createSession', sid + ' ' + d.name + ' (' + lines.length + ' lines)');
+      return sessionOut(srow);
+    }
+    case 'getSession': {
+      var s = findSession(db, d.id), glines = db.lines(d.id);
+      if (u.role === 'logistics') {
+        if (s.kind !== 'pre') throw new Error('Not allowed');
+        glines.forEach(function (l) { l.sysQty = ''; l.unitPrice = ''; });
+      }
+      return {session:sessionOut(s), lines:glines,
+              sigs:db.all('Signatures').filter(function (x) { return String(x.sessionId) === String(d.id); })};
+    }
+    case 'saveMeta': {
+      need(u, ['encoder']);
+      var s2 = findSession(db, d.id);
+      if (EDITABLE.indexOf(s2.status) < 0) throw new Error('Session is locked (' + s2.status + ')');
+      if (d.assign !== undefined) s2.assign = JSON.stringify(d.assign);
+      if (d.notes !== undefined) s2.notes = d.notes;
+      db.upsert('Sessions', 'id', [s2]);
+      return sessionOut(s2);
+    }
+    case 'saveLines': {
+      need(u, ['encoder', 'logistics']);
+      var s3 = findSession(db, d.id), isPre = s3.kind === 'pre';
+      var ls;
+      if (u.role === 'logistics') {
+        if (!isPre || s3.status !== 'Open') throw new Error('This pre-count is closed');
+        var existing = {}; db.lines(d.id).forEach(function (l) { existing[l.lineId] = l; });
+        ls = (d.lines || []).map(function (l) {
+          var ex = existing[l.lineId];
+          if (ex) { ['cF', 'cL', 'serial', 'lot', 'expiry', 'location', 'remarks', 'babyOk', 'looseUom'].forEach(function (k) { if (l[k] !== undefined) ex[k] = l[k]; }); return ex; }
+          if (l.isExtra !== 'Y' || String(l.lineId).indexOf(d.id + '-X') !== 0) throw new Error('Not allowed');
+          var nl = {itemId:'', section:'Active', sysQty:'', unitPrice:'', isExtra:'Y', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', motherId:'', babyOk:'', storage:''};
+          ['lineId', 'brand', 'category', 'pn', 'desc', 'serial', 'lot', 'expiry', 'uom', 'looseUom', 'packSize', 'location', 'cF', 'cL', 'remarks'].forEach(function (k) { nl[k] = l[k] === undefined ? '' : l[k]; });
+          return nl;
+        });
+      } else {
+        if (isPre ? (s3.status !== 'Open' && s3.status !== 'Submitted') : (EDITABLE.indexOf(s3.status) < 0)) throw new Error('Session is locked (' + s3.status + '). Return it to Review first.');
+        ls = d.lines || [];
+      }
+      ls = ls.map(function (l) {
+        ['cF', 'cL', 'kF', 'kL', 'rF', 'rL'].forEach(function (k) { l[k] = numOrBlank(l[k]); });
+        l.sysQty = numOrBlank(l.sysQty); l.unitPrice = numOrBlank(l.unitPrice); l.packSize = numOrBlank(l.packSize);
+        if (!l.lineId) l.lineId = d.id + '-X' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 100);
+        return l;
+      });
+      var added = db.upsertLines(d.id, ls);
+      if (added) { s3.lineCount = Number(s3.lineCount || 0) + added; db.upsert('Sessions', 'id', [s3]); }
+      return {saved:ls.length, ids:ls.map(function (l) { return l.lineId; })};
+    }
+    case 'refreshLinks': {
+      need(u, ['encoder']);
+      var sr = findSession(db, d.id);
+      if (!(sr.kind === 'pre' ? sr.status === 'Open' : (sr.status === 'Draft' || sr.status === 'Counting'))) throw new Error('Links can only be refreshed before counting is encoded');
+      var itm = {}; db.all('Items').forEach(function (i) { itm[i.id] = i; });
+      var rl = db.lines(d.id), chg = [];
+      rl.forEach(function (l) { var it = itm[l.itemId]; if (!it) return; var m = it.motherId || ''; if (String(l.motherId || '') !== String(m)) { l.motherId = m; if (!m) l.babyOk = ''; chg.push(l); } });
+      if (chg.length) db.upsertLines(d.id, chg);
+      return {changed:chg.length};
+    }
+    case 'applyPre': {
+      need(u, ['encoder']);
+      var sp = findSession(db, d.id);
+      if (sp.kind !== 'pre' || sp.status !== 'Submitted') throw new Error('Only a submitted pre-count can be applied');
+      var plines = db.lines(d.id), items0 = db.all('Items'), byId = {};
+      items0.forEach(function (i) { byId[i.id] = i; });
+      var changed = [], fresh = [], nAdd = 0, nUpd = 0, tag = 'pre-count ' + d.id;
+      plines.forEach(function (l, n) {
+        if (!l.itemId) {
+          if (!String(l.pn || '').trim() && !String(l.desc || '').trim()) return;
+          fresh.push({id:'ITM' + Date.now().toString(36).toUpperCase() + pad(n, 4), brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, looseUom:l.looseUom || '', packSize:l.packSize, location:l.location,
+                      storage:'', sysQty:0, asOf:'Pre-count', unitPrice:'', notes:'Found during ' + tag, section:'Active', source:tag, flags:'Added from pre-count - please check details', active:'', motherId:''});
+          nAdd++; return;
+        }
+        var it = byId[l.itemId]; if (!it) return;
+        var diff = false;
+        ['serial', 'lot', 'expiry', 'location', 'looseUom'].forEach(function (k) { var nv = String(l[k] == null ? '' : l[k]).trim(); if (nv !== String(it[k] == null ? '' : it[k]).trim() && !(k === 'looseUom' && nv === '')) { it[k] = nv; diff = true; } });
+        if (diff) { it.flags = 'Updated from ' + tag; changed.push(it); nUpd++; }
+      });
+      db.upsert('Items', 'id', changed.concat(fresh));
+      sp.status = 'Applied'; db.upsert('Sessions', 'id', [sp]);
+      log(db, u, 'applyPre', d.id + ' +' + nAdd + ' new, ' + nUpd + ' updated');
+      return {added:nAdd, updated:nUpd, session:sessionOut(sp)};
+    }
+    case 'setStatus': {
+      var s4 = findSession(db, d.id), from = s4.status, to = d.status, ok = false;
+      if (s4.kind === 'pre') {
+        if (u.role !== 'encoder' || from !== 'Submitted' || to !== 'Open') throw new Error('Cannot change a pre-count from ' + from + ' to ' + to);
+        db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id); });
+        s4.status = 'Open'; db.upsert('Sessions', 'id', [s4]); log(db, u, 'reopenPre', d.id); return sessionOut(s4);
+      }
+      if (u.role === 'encoder') ok = (ENC_FLOW[from] || []).indexOf(to) >= 0;
+      else if (u.role === 'verifier') ok = from === 'Verification' && to === 'Review';
+      else if (u.role === 'approver') ok = from === 'Approval' && to === 'Review';
+      if (!ok) throw new Error('Cannot change status from ' + from + ' to ' + to + ' as ' + u.role);
+      if (u.role !== 'encoder' && !String(d.note || '').trim()) throw new Error('Please enter a reason for returning the count');
+      if (from === 'Verification' || from === 'Approval') db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id); });
+      s4.status = to; s4.returnNote = (u.role !== 'encoder' && to === 'Review') ? (u.name + ': ' + d.note) : (to === 'Review' ? s4.returnNote : '');
+      db.upsert('Sessions', 'id', [s4]);
+      log(db, u, 'setStatus', d.id + ' ' + from + ' -> ' + to + (d.note ? ' | ' + d.note : ''));
+      return sessionOut(s4);
+    }
+    case 'sign': {
+      need(u, ['verifier', 'approver', 'logistics']);
+      var s5 = findSession(db, d.id), me = findUser(db, u.name);
+      if (!checkPin(db, me, d.pin)) throw new Error('Wrong PIN');
+      if (!d.image || String(d.image).length < 200) throw new Error('Please draw your signature');
+      if (String(d.image).length > 45000) throw new Error('Signature image is too large. Clear and sign again.');
+      if (u.role === 'logistics') { if (s5.kind !== 'pre' || s5.status !== 'Open') throw new Error('This pre-count is not open for signing'); s5.status = 'Submitted'; }
+      else if (s5.kind === 'pre') throw new Error('Only logistics signs a pre-count');
+      else if (u.role === 'verifier' && s5.status === 'Verification') s5.status = 'Approval';
+      else if (u.role === 'approver' && s5.status === 'Approval') s5.status = 'Approved';
+      else throw new Error('This count is not waiting for a ' + u.role + ' signature (status: ' + s5.status + ')');
+      db.append('Signatures', [{sessionId:d.id, role:u.role, name:u.name, signedAt:db.now(), image:d.image}]);
+      db.upsert('Sessions', 'id', [s5]);
+      log(db, u, 'sign', d.id + ' as ' + u.role);
+      return sessionOut(s5);
+    }
+    default: throw new Error('Unknown action: ' + a);
+  }
+}
+</script>
+<script>
+'use strict';
+const FORCE_DEMO = false;
+const API_URL = '';           // only if this page is hosted outside Apps Script (e.g. GitHub Pages): paste the web app /exec URL here
+const SEED_ITEMS = [];
+const MODE = FORCE_DEMO ? 'demo' : ((typeof google !== 'undefined' && google.script && google.script.run) ? 'gas' : (API_URL ? 'fetch' : 'demo'));
+const CATS = ['Equipment','Reagent','Plastic consumable','Accessory','Spare parts','Licensed software'];
+const CAT_SHORT = {'Equipment':'Eqpt','Reagent':'Rgt','Plastic consumable':'Cons','Accessory':'Accy','Spare parts':'Parts','Licensed software':'Lic-SW'};
+const UOMS = ['unit','pc','box','case','kit','vial','bottle','pack','rack','set','bag','plate','roll','lot','tub'];
+const REASONS = ['Miscount','Unrecorded issue / receipt','Wrong lot / mislabeled','Damaged','Expired / disposed','Missing / lost','Found - not in system','Other (see remarks)'];
+const STEPS = ['Draft','Counting','Encoding','Review','Verification','Approval','Approved'];
+const ST = {user:null, token:null, items:[], sessions:[], users:[], view:'sessions', S:null, dirty:new Set(), saving:false, itemPage:0, itemF:{q:'',brand:'',cat:'',sec:'',issue:''}};
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = v => String(v == null ? '' : v).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const N = v => (v === '' || v == null || isNaN(+v)) ? null : +v;
+const r4 = x => Math.round(x * 10000) / 10000;
+const fq = x => x == null ? '' : (Math.abs(x - Math.round(x)) < 1e-9 ? String(Math.round(x)) : String(Math.round(x * 100) / 100));
+const peso = x => (x < 0 ? '-' : '') + '₱' + Math.abs(x).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2});
+const tot = (F, L, pack) => (N(F) || 0) + (pack > 0 ? (N(L) || 0) / pack : 0);
+function toast(msg, err) { const d = document.createElement('div'); d.textContent = msg; if (err) d.className = 'err'; $('#toast').appendChild(d); setTimeout(() => d.remove(), err ? 7000 : 3200); }
+let busyN = 0;
+function busy(on) { busyN += on ? 1 : -1; $('#busy').style.display = busyN > 0 ? 'block' : 'none'; }
+function modal(html, wide) { const m = $('#modal'); m.innerHTML = `<div class="box${wide ? ' wide' : ''}">${html}</div>`; m.style.display = 'flex'; }
+function closeModal() { $('#modal').style.display = 'none'; $('#modal').innerHTML = ''; }
+$('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal' && !$('#modal').dataset.sticky) closeModal(); });
+
+/* ---------- transport ---------- */
+function call(action, data) {
+  return new Promise((res, rej) => {
+    const req = {action, token:ST.token, data:data || {}};
+    const done = r => { if (r.ok) res(r.data); else { if (r.error === 'SESSION_EXPIRED') { logout('Your session expired. Please sign in again.'); } rej(new Error(r.error === 'SESSION_EXPIRED' ? 'Session expired' : r.error)); } };
+    if (MODE === 'gas') google.script.run.withSuccessHandler(s => done(JSON.parse(s))).withFailureHandler(e => rej(new Error((e && e.message) || e))).api(JSON.stringify(req));
+    else if (MODE === 'fetch') fetch(API_URL, {method:'POST', headers:{'Content-Type':'text/plain'}, body:JSON.stringify(req)}).then(r => r.json()).then(done).catch(rej);
+    else setTimeout(() => done(core(demoDb, JSON.parse(JSON.stringify(req)))), 80);
+  });
+}
+async function run(action, data, quiet) {
+  busy(true);
+  try { return await call(action, data); }
+  catch (e) { if (!quiet) toast(e.message, true); throw e; }
+  finally { busy(false); }
+}
+
+/* ---------- demo storage (mock mode only) ---------- */
+const demoDb = (function () {
+  const KEY = 'raincount_demo_v2'; let S = null, mem = null;
+  function load() { try { return JSON.parse(localStorage.getItem(KEY) || 'null'); } catch (e) { return mem; } }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { mem = S; } }
+  const hp = (pin, salt) => 'demo:' + btoa(salt + ':' + pin);
+  function init() {
+    S = {Items:SEED_ITEMS.map(x => Object.assign({active:''}, x)), Sessions:[], Signatures:[], Log:[], lines:{}, cache:{}, Users:[]};
+    [['Encoder 1','encoder','1234'],['Encoder 2','encoder','1234'],['Verifier 1','verifier','2345'],['Approver 1','approver','3456'],['Logistics 1','logistics','4567']].forEach(u => { const salt = Math.random().toString(36).slice(2); S.Users.push({name:u[0], role:u[1], salt, pinHash:hp(u[2], salt), active:'Y'}); });
+    save();
+  }
+  S = load(); if (!S) init();
+  if (!S.Users.some(u => u.role === 'logistics')) { const salt = Math.random().toString(36).slice(2); S.Users.push({name:'Logistics 1', role:'logistics', salt, pinHash:hp('4567', salt), active:'Y'}); save(); }
+  const clone = o => JSON.parse(JSON.stringify(o));
+  return {
+    reset() { init(); },
+    now: () => new Date().toISOString(), uuid: () => Math.random().toString(36).slice(2) + Date.now().toString(36), hashPin: hp,
+    cacheGet: k => { const c = S.cache[k]; return c && c.exp > Date.now() ? c.v : null; },
+    cachePut: (k, v, sec) => { S.cache[k] = {v, exp:Date.now() + sec * 1000}; save(); },
+    all: t => clone(S[t]),
+    append: (t, rows) => { S[t].push.apply(S[t], clone(rows)); save(); },
+    replace: (t, rows) => { S[t] = clone(rows); save(); },
+    upsert: (t, key, rows) => { rows.forEach(o => { const i = S[t].findIndex(x => String(x[key]) === String(o[key])); if (i >= 0) S[t][i] = clone(o); else S[t].push(clone(o)); }); save(); },
+    deleteWhere: (t, pred) => { S[t] = S[t].filter(o => !pred(o)); save(); },
+    createLines: (sid, lines) => { S.lines[sid] = clone(lines); save(); },
+    lines: sid => clone(S.lines[sid] || []),
+    upsertLines: (sid, ls) => { const a = S.lines[sid]; let added = 0; ls.forEach(o => { const i = a.findIndex(x => x.lineId === o.lineId); if (i >= 0) a[i] = clone(o); else { a.push(clone(o)); added++; } }); save(); return added; }
+  };
+})();
+
+/* ---------- auth ---------- */
+async function boot() {
+  try { const names = await run('names', {}, true); renderLogin(names); } catch (e) { renderLogin([], e.message); }
+}
+function renderLogin(names, err, msg) {
+  $('#app').innerHTML = `${MODE === 'demo' ? '<div class="demo">MOCK / DEMO MODE — sample data stored only in this browser. Logins: Encoder 1 / 1234 · Verifier 1 / 2345 · Approver 1 / 3456 · Logistics 1 / 4567</div>' : ''}
+  <div class="login"><div class="card"><h2>RainPhil Physical Count</h2><p class="mut">${esc(msg || 'Sign in with your name and PIN.')}</p>
+  ${err ? `<div class="note">${esc(err)}</div>` : ''}
+  <label class="small mut">Name</label><select id="lgN">${names.map(n => `<option>${esc(n)}</option>`).join('')}</select>
+  <label class="small mut">PIN</label><input id="lgP" type="password" inputmode="numeric" autocomplete="off" maxlength="8">
+  <button class="pri" style="width:100%" id="lgB">Sign in</button></div></div>`;
+  const go = async () => {
+    try { const r = await run('login', {name:$('#lgN').value, pin:$('#lgP').value}); ST.token = r.token; ST.user = r.user; await loadAll(); }
+    catch (e) { $('#lgP').value = ''; }
+  };
+  $('#lgB').onclick = go; $('#lgP').addEventListener('keydown', e => { if (e.key === 'Enter') go(); }); $('#lgP').focus();
+}
+function logout(msg) { ST.token = null; ST.user = null; ST.S = null; ST.dirty.clear(); closeModal(); boot().then(() => { if (msg) toast(msg, true); }); }
+async function loadAll() {
+  const b = await run('bootstrap', {});
+  ST.items = b.items; ST.sessions = b.sessions; ST.users = b.users; ST.user = b.user; ST.view = 'sessions'; ST.S = null;
+  shell();
+}
+const isEnc = () => ST.user && ST.user.role === 'encoder';
+function shell() {
+  const nav = [['sessions','Count sessions']].concat(isEnc() ? [['items','Items'],['users','Users']] : []);
+  $('#app').innerHTML = `${MODE === 'demo' ? '<div class="demo">MOCK / DEMO MODE — sample data stored only in this browser · <a href="#" id="dReset">reset demo data</a></div>' : ''}
+  <header class="top"><h1>RainPhil Physical Count</h1><nav>${nav.map(n => `<button data-v="${n[0]}" class="${ST.view === n[0] ? 'on' : ''}">${n[1]}</button>`).join('')}</nav>
+  <span class="who">Signed in: <b>${esc(ST.user.name)}</b> (${esc(ST.user.role)})</span><button id="lo">Sign out</button></header><main id="main"></main>`;
+  document.querySelectorAll('nav button').forEach(b => b.onclick = () => go(b.dataset.v));
+  $('#lo').onclick = async () => { if (await leaveOk()) logout(); };
+  if ($('#dReset')) $('#dReset').onclick = e => { e.preventDefault(); if (confirm('Reset all demo data?')) { demoDb.reset(); logout('Demo data reset'); } };
+  render();
+}
+async function leaveOk() { if (ST.dirty.size) { try { await saveDirty(); } catch (e) { return confirm('Unsaved changes could not be saved. Leave anyway?'); } } return true; }
+async function go(v) { if (!(await leaveOk())) return; ST.view = v; ST.S = null; shell(); }
+function render() { const m = $('#main'); if (ST.view === 'sessions') ST.S ? renderSession() : renderSessions(); else if (ST.view === 'items') renderItems(); else if (ST.view === 'users') renderUsers(); }
+window.addEventListener('beforeunload', e => { if (ST.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
+
+/* ---------- sessions list ---------- */
+function stBadge(s) { const c = s === 'Approved' ? 'b-ok' : (s === 'Draft' ? '' : 'b-pri'); return `<span class="badge ${c}">${esc(s)}</span>`; }
+function renderSessions() {
+  const rows = ST.sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  $('#main').innerHTML = `<div class="row" style="margin-bottom:12px"><h2 class="sp" style="margin:0">${ST.user.role === 'logistics' ? 'Pre-count' : 'Count sessions'}</h2>${isEnc() ? '<button class="pri" id="ns">+ New count / pre-count</button>' : ''}</div>
+  ${ST.user.role === 'logistics' ? '<div class="note">Open your pre-count, type what you found, add anything not on the list, then sign and submit.</div>' : ''}
+  ${ST.user.role === 'verifier' ? '<div class="note">You are a verifier: open a session in <b>Verification</b> to review and sign.</div>' : ''}
+  ${ST.user.role === 'approver' ? '<div class="note">You are an approver: open a session in <b>Approval</b> to review and sign.</div>' : ''}
+  <div class="tw"><table class="t"><thead><tr><th>Session</th><th>Count date</th><th>Brands</th><th class="num">Lines</th><th>Status</th><th>Created by</th></tr></thead><tbody>
+  ${rows.map(s => `<tr style="cursor:pointer" data-id="${esc(s.id)}"><td><b>${esc(s.name)}</b>${s.kind === 'pre' ? ' <span class="badge b-warn">pre-count</span>' : ''}<div class="small mut">${esc(s.id)}</div></td><td>${esc(s.date)}</td><td>${s.brands.length} brand(s)</td><td class="num">${s.lineCount}</td><td>${stBadge(s.status)}${(s.status === 'Verification' && ST.user.role === 'verifier') || (s.status === 'Approval' && ST.user.role === 'approver') ? ' <span class="badge b-warn">needs your signature</span>' : ''}</td><td>${esc(s.createdBy)}</td></tr>`).join('') || '<tr><td colspan="6" class="mut" style="padding:20px">No count sessions yet.</td></tr>'}
+  </tbody></table></div>`;
+  document.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => openSession(tr.dataset.id));
+  if ($('#ns')) $('#ns').onclick = newSessionModal;
+}
+function newSessionModal() {
+  const act = ST.items.filter(i => i.active !== 'N');
+  const brands = {}; act.forEach(i => { const b = brands[i.brand] = brands[i.brand] || {a:0, e:0}; if (i.section === 'Expired') b.e++; else b.a++; });
+  const names = Object.keys(brands).sort();
+  modal(`<h2>New session</h2><div class="row" style="margin-bottom:10px"><label><input type="radio" name="nsK" value="count" checked> Actual count (counter / checker)</label><label><input type="radio" name="nsK" value="pre"> Logistics pre-count (typed by logistics)</label></div><div class="fg"><div><label>Session name</label><input id="nsN" placeholder="e.g. Year-end count 2026"></div><div><label>Count date</label><input id="nsD" type="date" value="${new Date().toISOString().slice(0, 10)}"></div></div>
+  <div style="margin:12px 0 6px" class="row"><b>Brands to count</b><label class="small"><input type="checkbox" id="nsAll"> select all</label><label class="small"><input type="checkbox" id="nsExp" checked> include Expired Items section</label></div>
+  <div class="brandlist">${names.map(n => `<label><input type="checkbox" class="nb" value="${esc(n)}"> ${esc(n)} <span class="mut small">(${brands[n].a}${brands[n].e ? ' + ' + brands[n].e + ' exp' : ''})</span></label>`).join('')}</div>
+  <div style="margin-top:10px"><label class="small mut">Notes (cut-off, scope)</label><textarea id="nsT" rows="2" style="width:100%"></textarea></div>
+  <div class="row" style="margin-top:14px"><span class="sp mut small" id="nsC"></span><button id="nsX">Cancel</button><button class="pri" id="nsOK">Create session</button></div>`);
+  const upd = () => { const sel = [...document.querySelectorAll('.nb:checked')].map(x => x.value); let n = 0; sel.forEach(b => { n += brands[b].a + ($('#nsExp').checked ? brands[b].e : 0); }); $('#nsC').textContent = `${sel.length} brand(s), ${n} lines`; };
+  document.querySelectorAll('.nb').forEach(c => c.onchange = upd); $('#nsExp').onchange = upd;
+  $('#nsAll').onchange = e => { document.querySelectorAll('.nb').forEach(c => c.checked = e.target.checked); upd(); };
+  $('#nsX').onclick = closeModal;
+  $('#nsOK').onclick = async () => {
+    const sel = [...document.querySelectorAll('.nb:checked')].map(x => x.value);
+    try { const s = await run('createSession', {name:$('#nsN').value.trim(), date:$('#nsD').value, notes:$('#nsT').value, brands:sel, includeExpired:$('#nsExp').checked, kind:document.querySelector('input[name=nsK]:checked').value}); closeModal(); ST.sessions.push(s); toast('Session created'); openSession(s.id); } catch (e) {}
+  };
+}
+
+/* ---------- session view ---------- */
+async function openSession(id) {
+  const r = await run('getSession', {id});
+  ST.dirty.clear(); setSession(r, ST.S && ST.S.session.id === id ? ST.S : null);
+  if (r.session.kind === 'pre') return renderPre();
+  renderSession();
+}
+function setSession(r, prev) {
+  const lines = r.lines.map(normLine);
+  ST.S = {session:r.session, lines, map:Object.fromEntries(lines.map(l => [l.lineId, l])), sigs:r.sigs, itemIds:new Set(lines.map(l => l.itemId).filter(Boolean)), tab:prev ? prev.tab : 'print', brand:prev ? prev.brand : '', f:prev ? prev.f : 'all', q:prev ? prev.q : '', rf:prev ? prev.rf : 'recount'};
+  const i = ST.sessions.findIndex(s => s.id === r.session.id); if (i >= 0) ST.sessions[i] = r.session;
+  const bs = brandsOf(); if (!ST.S.brand || bs.indexOf(ST.S.brand) < 0) ST.S.brand = bs[0] || '';
+}
+function normLine(l) { ['cF','cL','kF','kL','rF','rL','sysQty','unitPrice','packSize'].forEach(k => { l[k] = (l[k] === '' || l[k] == null) ? '' : Number(l[k]); }); return l; }
+const uomTxt = l => esc(l.uom) + (N(l.packSize) > 0 ? `<br><small>loose = ${esc(l.looseUom || 'pc')} · ${l.packSize} per ${esc(l.uom || 'unit')}</small>` : '');
+const isBaby = l => !!(l.motherId && ST.S.itemIds.has(l.motherId));
+const brandsOf = () => [...new Set(ST.S.lines.filter(l => !isBaby(l)).map(l => l.brand))].sort();
+/* the lines of one brand sheet: mother items sorted by location, each followed by its baby parts (a baby may belong to another brand) */
+function linesOfBrand(b) {
+  const S = ST.S, tops = sortPrint(S.lines.filter(l => l.brand === b && !isBaby(l))), ids = new Set(tops.map(l => l.itemId).filter(Boolean)), kids = {};
+  S.lines.filter(l => isBaby(l) && ids.has(l.motherId)).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
+  const out = []; tops.forEach(l => { out.push(l); (kids[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => out.push(k)); }); return out;
+}
+const motherOf = l => ST.S.lines.find(x => x.itemId === l.motherId);
+const canEdit = () => isEnc() && ['Draft','Counting','Encoding','Review'].includes(ST.S.session.status);
+
+/* count logic */
+function calc(l) {
+  if (isBaby(l)) return {st:l.babyOk === 'Y' ? 'babyok' : (l.babyOk === 'N' ? 'babybad' : (l.babyOk === 'M' ? 'babymiss' : 'pending')), sys:0};
+  const sys = N(l.sysQty) || 0, pack = N(l.packSize) || 0;
+  const cE = N(l.cF) != null, kE = N(l.kF) != null;
+  if (!cE || !kE) return {st:'pending', sys};
+  const same = N(l.cF) === N(l.kF) && (N(l.cL) || 0) === (N(l.kL) || 0);
+  let F = null, L = 0, st = 'mismatch';
+  if (same) { F = N(l.cF); L = N(l.cL) || 0; st = 'match'; }
+  else if (N(l.rF) != null) { F = N(l.rF); L = N(l.rL) || 0; st = 'recounted'; }
+  if (F == null) return {st, sys, cT:tot(l.cF, l.cL, pack), kT:tot(l.kF, l.kL, pack)};
+  const total = tot(F, L, pack), v = r4(total - sys);
+  return {st, sys, total, v, val:v * (N(l.unitPrice) || 0), cT:tot(l.cF, l.cL, pack), kT:tot(l.kF, l.kL, pack)};
+}
+function summary() {
+  const s = {lines:0, pending:0, match:0, mismatch:0, recounted:0, varLines:0, noReason:0, short:0, over:0, net:0, extra:0, babies:0, babyPending:0, babyBad:0, babyNoRemark:0};
+  ST.S.lines.forEach(l => { const c = calc(l); if (isBaby(l)) { s.babies++; if (c.st === 'pending') s.babyPending++; if (c.st === 'babymiss') s.babyBad++; if (c.st === 'babybad') { s.babyBad++; if (!String(l.remarks || '').trim()) s.babyNoRemark++; } return; } s.lines++; s[c.st]++; if (l.isExtra) s.extra++; if (c.v != null && Math.abs(c.v) > 1e-9) { s.varLines++; if (!l.reason) s.noReason++; if (c.val < 0) s.short += c.val; else s.over += c.val; s.net += c.val; } });
+  return s;
+}
+function renderSession() {
+  const S = ST.S, s = S.session, idx = STEPS.indexOf(s.status), sm = summary();
+  const tabs = [['print','1 · Setup & print'],['encode','2 · Encode counts'],['review','3 · Compare & review'],['report','4 · Report & sign']];
+  $('#main').innerHTML = `<div class="row"><button id="bk">← Sessions</button><h2 style="margin:0">${esc(s.name)}</h2>${stBadge(s.status)}<span class="mut small">${esc(s.id)} · count date ${esc(s.date)} · ${S.lines.length} lines</span><span class="sp"></span><span id="dirtyTag" class="small mut"></span>${nextBtn()}</div>
+  <div class="steps">${STEPS.map((x, i) => `<div class="${i < idx ? 'done' : (i === idx ? 'cur' : '')}">${x}</div>`).join('')}</div>
+  ${s.returnNote ? `<div class="note" style="margin-top:10px"><b>Returned:</b> ${esc(s.returnNote)}</div>` : ''}
+  <div class="tabs" style="margin-top:12px">${tabs.map(t => `<button data-t="${t[0]}" class="${S.tab === t[0] ? 'on' : ''}">${t[1]}</button>`).join('')}</div><div id="tab"></div>`;
+  $('#bk').onclick = async () => { if (await leaveOk()) { ST.S = null; ST.view = 'sessions'; render(); } };
+  document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => switchTab(b.dataset.t));
+  if ($('#nx')) $('#nx').onclick = advance;
+  renderTab(); updDirty();
+}
+function updDirty() { const t = $('#dirtyTag'); if (t) t.textContent = ST.dirty.size ? `${ST.dirty.size} unsaved line(s)` : (ST.S && canEdit() ? 'All changes saved' : ''); }
+function nextBtn() {
+  if (!isEnc()) return '';
+  const st = ST.S.session.status, m = {Draft:'Sheets printed → start counting', Counting:'Counting done → start encoding', Encoding:'Encoding done → go to review', Review:'Submit for verification'};
+  const back = {Counting:'Draft', Encoding:'Counting', Review:'Encoding', Verification:'Review'};
+  return (back[st] ? `<button id="bkst" title="Go back one stage">↩ Back to ${back[st]}</button>` : '') + (m[st] ? `<button class="pri" id="nx">${m[st]}</button>` : (st === 'Verification' ? '<span class="badge b-warn">Waiting for verifier</span>' : ''));
+}
+async function switchTab(t) {
+  if (ST.dirty.size) { try { await saveDirty(); } catch (e) { return; } }
+  if ((t === 'review' || t === 'report') && ST.S.tab !== t) { try { const r = await run('getSession', {id:ST.S.session.id}); setSession(r, ST.S); } catch (e) { return; } }
+  ST.S.tab = t; renderSession();
+}
+async function advance() {
+  const s = ST.S.session, sm = summary(), nxt = {Draft:'Counting', Counting:'Encoding', Encoding:'Review', Review:'Verification'}[s.status];
+  if (ST.dirty.size) await saveDirty();
+  if (s.status === 'Counting' && !confirm('Have you received the counter AND checker sheets, signed in ink on every page? Only encode from signed sheets.')) return;
+  if (s.status === 'Encoding' && (sm.pending + sm.babyPending) > 0 && !confirm(`${sm.pending + sm.babyPending} line(s) are not fully encoded / checked. Go to review anyway?`)) return;
+  if (s.status === 'Review') {
+    if (sm.pending > 0) return toast(`${sm.pending} line(s) still not encoded. Enter 0 for items counted as zero.`, true);
+    if (sm.babyPending > 0) return toast(`${sm.babyPending} baby part(s) are not checked yet.`, true);
+    if (sm.babyNoRemark > 0) return toast(`${sm.babyNoRemark} baby part(s) marked Different need the actual PN / serial / lot / expiry in Remarks.`, true);
+    if (sm.mismatch > 0) return toast(`${sm.mismatch} line(s) have counter/checker differences that need a recount.`, true);
+    if (sm.noReason > 0) return toast(`${sm.noReason} variance line(s) need a reason.`, true);
+    if (!confirm('Submit this count for verification?\n\nMake sure the counter and checker have signed (wet ink) the encoded-count confirmation sheets. Entries will be locked.')) return;
+  }
+  try { const r = await run('setStatus', {id:s.id, status:nxt}); ST.S.session = r; ST.sessions[ST.sessions.findIndex(x => x.id === r.id)] = r; if (nxt === 'Encoding') ST.S.tab = 'encode'; if (nxt === 'Review') ST.S.tab = 'review'; if (nxt === 'Verification') ST.S.tab = 'report'; renderSession(); } catch (e) {}
+}
+document.addEventListener('click', async e => {
+  if (e.target && e.target.id === 'bkst') {
+    const s = ST.S.session, back = {Counting:'Draft', Encoding:'Counting', Review:'Encoding', Verification:'Review'}[s.status];
+    if (!confirm(`Go back to ${back}?`)) return;
+    try { const r = await run('setStatus', {id:s.id, status:back}); ST.S.session = r; ST.sessions[ST.sessions.findIndex(x => x.id === r.id)] = r; renderSession(); } catch (er) {}
+  }
+});
+function renderTab() { ({print:tabPrint, encode:tabEncode, review:tabReview, report:tabReport})[ST.S.tab](); }
+
+/* ---------- tab 1: setup & print ---------- */
+function tabPrint() {
+  const S = ST.S, s = S.session, bs = brandsOf(), ed = canEdit();
+  const cnt = b => { const ls = linesOfBrand(b); return [ls.filter(l => !isBaby(l) && l.section !== 'Expired').length, ls.filter(l => !isBaby(l) && l.section === 'Expired').length, ls.filter(isBaby).length]; };
+  $('#tab').innerHTML = `<div class="card"><h3>Who counts which brand</h3><p class="mut small" style="margin-top:0">Counters and checkers work on paper only. Names entered here are printed on their sheets.</p>
+  <div class="tw"><table class="t"><thead><tr><th>Brand</th><th class="num">PN lines to count</th><th>Counter</th><th>Checker</th><th></th></tr></thead><tbody>
+  ${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td><input data-b="${esc(b)}" data-r="c" value="${esc(a.c || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="k" value="${esc(a.k || '')}" ${ed ? '' : 'disabled'}></td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
+  </tbody></table></div>
+  <div style="margin-top:10px"><label class="small mut">Notes (cut-off / scope)</label><br><textarea id="mNotes" rows="2" style="width:100%" ${ed ? '' : 'disabled'}>${esc(s.notes)}</textarea></div>
+  ${ed ? '<div class="row" style="margin-top:8px"><button id="saveMeta">Save names & notes</button></div>' : ''}</div>
+  <div class="card"><h3>Mother / baby links</h3><p class="small mut" style="margin:0 0 8px">Links are copied when a session is created. If you set or changed “Baby part of” on items afterwards, refresh here (only before counting is encoded). Both the mother and its babies must be in this session.</p>${canEdit() && ['Draft','Counting'].includes(s.status) ? '<button id="rfL">↻ Refresh baby links</button>' : ''}</div>
+  <div class="card"><h3>Print</h3><div class="row"><label class="small mut">Brand</label><select id="pb"><option value="">All brands</option>${bs.map(b => `<option>${esc(b)}</option>`).join('')}</select></div>
+  <div class="row" style="margin-top:10px">
+  <button class="pri" id="pBl">1 · Pre-count sheet — blank (for logistics)</button>
+  <button id="pPre">Control sheet with system qty (tabulator only)</button>
+  <button id="pCo">2 · Counting sheets · Counter copy</button><button id="pCk">Counting sheets · Checker copy</button><button id="pBoth">Both copies</button></div>
+  <p class="mut small">A full-screen preview opens first, then use <b>Print…</b> or <b>Save as file</b>. The <b>pre-count sheet</b> and the <b>counting sheets</b> show no system quantity and end with blank rows for items found that are not on the list. The <b>control sheet</b> (with system qty and the checklist) stays with the tabulator. Each line has <b>Full</b> (complete units) and <b>Loose</b> (loose pieces) boxes. Lines are sorted by location so counters can walk the shelves in order.</p></div>`;
+  document.querySelectorAll('button[data-pv]').forEach(btn => btn.onclick = () => {
+    const b = btn.dataset.pv, ls = linesOfBrand(b);
+    modal(`<h2>${esc(b)} — items to count</h2><p class="mut small" style="margin-top:0">${ls.length} lines. This is what the counter and checker will see on their sheets (no system quantity).</p><div class="tw" style="max-height:62vh"><table class="t"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th></tr></thead><tbody>${ls.map((l, i) => `<tr><td class="mut">${isBaby(l) ? '↳' : i + 1}</td><td>${CAT_SHORT[l.category] || ''}</td><td>${isBaby(l) ? '↳ ' : ''}${esc(l.pn)}${isBaby(l) ? ' <span class="badge">baby — do not count</span>' : ''}${l.section === 'Expired' ? ' <span class="badge b-bad">expired</span>' : ''}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td></tr>`).join('')}</tbody></table></div><div class="row" style="margin-top:12px"><span class="sp"></span><button id="pvX">Close</button></div>`, true);
+    $('#pvX').onclick = closeModal;
+  });
+  if ($('#saveMeta')) $('#saveMeta').onclick = async () => {
+    const assign = {}; document.querySelectorAll('input[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value.trim(); });
+    try { const r = await run('saveMeta', {id:s.id, assign, notes:$('#mNotes').value}); S.session = r; toast('Saved'); } catch (e) {}
+  };
+  const pb = () => $('#pb').value;
+  if ($('#rfL')) $('#rfL').onclick = refreshLinks;
+  $('#pBl').onclick = () => printSheets({kind:'blank', brand:pb()});
+  $('#pPre').onclick = () => printSheets({kind:'pre', brand:pb()});
+  $('#pCo').onclick = () => printSheets({kind:'count', copy:'Counter', brand:pb()});
+  $('#pCk').onclick = () => printSheets({kind:'count', copy:'Checker', brand:pb()});
+  $('#pBoth').onclick = () => printSheets({kind:'count', copy:'Both', brand:pb()});
+}
+
+/* ---------- tab 2: encode ---------- */
+function tabEncode() {
+  const S = ST.S, bs = brandsOf(), ed = canEdit();
+  const prog = b => { const ls = linesOfBrand(b); return [ls.filter(l => calc(l).st !== 'pending').length, ls.length]; };
+  $('#tab').innerHTML = `<div class="row" style="margin-bottom:10px"><select id="eb">${bs.map(b => { const p = prog(b); return `<option value="${esc(b)}" ${b === S.brand ? 'selected' : ''}>${esc(b)} — ${p[0]}/${p[1]} encoded</option>`; }).join('')}</select>
+  <input id="eq" placeholder="Search PN, description, serial, lot…" value="${esc(S.q)}" style="width:260px">
+  <div class="pills" id="ef">${[['all','All'],['todo','Not encoded'],['diff','Differences']].map(f => `<button data-f="${f[0]}" class="${S.f === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div>
+  <span class="sp"></span>${ed ? '<button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
+  ${ed ? '<p class="mut small" style="margin:0 0 8px">Type each person’s count from their own paper sheet. Enter <b>0</b> for items counted as zero — blank means “not encoded”. Press Enter to move down. <b>Loose</b> needs a pack size (set it in Items).</p>' : ''}
+  <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
+  $('#eb').onchange = e => { S.brand = e.target.value; fillEncode(); };
+  $('#eq').oninput = e => { S.q = e.target.value; fillEncode(); };
+  document.querySelectorAll('#ef button').forEach(b => b.onclick = () => { S.f = b.dataset.f; document.querySelectorAll('#ef button').forEach(x => x.classList.toggle('on', x === b)); fillEncode(); });
+  if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
+  if ($('#addX')) $('#addX').onclick = addExtraModal;
+  fillEncode();
+}
+const stHtml = c => ({pending:'<span class="st-p">○ to encode</span>', match:'<span class="st-m">✓ match</span>', mismatch:'<span class="st-x">⚠ recount</span>', recounted:'<span class="st-r">✓ recounted</span>', babyok:'<span class="st-m">✓ part ok</span>', babymiss:'<span class="st-x">⚠ not present (0)</span>', babybad:'<span class="st-x">⚠ part differs</span>'})[c.st];
+function encRows() {
+  const S = ST.S, q = S.q.trim().toLowerCase();
+  return linesOfBrand(S.brand).filter(l => {
+    if (q && !(`${l.pn} ${l.desc} ${l.serial} ${l.lot}`.toLowerCase().includes(q))) return false;
+    const st = calc(l).st; if (S.f === 'todo') return st === 'pending'; if (S.f === 'diff') return st === 'mismatch' || st === 'recounted' || st === 'babybad' || st === 'babymiss'; return true;
+  });
+}
+function fillEncode() {
+  const ed = canEdit(), rows = encRows(); let h = '', prevSec = null, nn = 0;
+  rows.forEach((l, i) => {
+    if (l.section !== prevSec) { if (l.section === 'Expired') h += '<tr><td colspan="14" style="background:#f6e0dd;font-weight:600">EXPIRED ITEMS</td></tr>'; prevSec = l.section; }
+    if (isBaby(l)) {
+      const m = motherOf(l), id = esc(l.lineId);
+      h += `<tr data-r="${id}" style="background:#f6f7fb"><td class="mut">↳</td><td>${CAT_SHORT[l.category] || ''}</td><td>↳ ${esc(l.pn)}</td><td>${esc(l.desc)} <span class="badge">baby part of ${esc(m ? m.pn : '')} — do not count</span></td><td>${esc(l.uom)}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>
+      <td colspan="4"><select data-l="${id}" data-t="babyOk" ${ed ? '' : 'disabled'}><option value="">— check part —</option><option value="Y" ${l.babyOk === 'Y' ? 'selected' : ''}>✓ PN / serial / lot / exp correct</option><option value="N" ${l.babyOk === 'N' ? 'selected' : ''}>⚠ Different</option><option value="M" ${l.babyOk === 'M' ? 'selected' : ''}>✕ Not present (0) — used / missing</option></select> <input data-l="${id}" data-t="remarks" placeholder="actual PN / serial / lot / expiry" value="${esc(l.remarks)}" style="width:220px" ${ed ? '' : 'disabled'}> ${ed ? `<button data-loose="${id}" class="small" title="Found loose, not attached: count it as a disassembled item">+ count as disassembled (loose)</button>` : ''}</td><td class="st">${stHtml(calc(l))}</td></tr>`;
+      return;
+    }
+    nn++;
+    const pk = N(l.packSize) > 0, inp = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${esc(l.lineId)}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
+    h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${CAT_SHORT[l.category] || ''}</td><td>${esc(l.pn)}${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}${pk ? `<div class="small mut">loose = ${esc(l.looseUom || 'pc')}<br>${l.packSize} per ${esc(l.uom || 'unit')}</div>` : (N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : '')}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>
+    <td class="num">${inp('cF')}</td><td class="num">${inp('cL', !pk)}</td><td class="num">${inp('kF')}</td><td class="num">${inp('kL', !pk)}</td><td class="st">${stHtml(calc(l))}</td></tr>`;
+  });
+  $('#eBody').innerHTML = h || '<tr><td colspan="14" class="mut" style="padding:20px">No lines.</td></tr>';
+}
+document.addEventListener('input', e => {
+  const t = e.target; if (!t.dataset || !t.dataset.l || !t.dataset.f || !ST.S) return;
+  const l = ST.S.map[t.dataset.l]; if (!l) return;
+  l[t.dataset.f] = t.value === '' ? '' : Number(t.value); markDirty(l.lineId);
+  const tr = t.closest('tr'); if (tr && tr.querySelector('td.st')) tr.querySelector('td.st').innerHTML = stHtml(calc(l));
+  if (ST.S.tab === 'review') refreshReviewRow(l.lineId);
+});
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || !e.target.dataset || !e.target.dataset.l) return;
+  const tr = e.target.closest('tr'); let nx = tr && tr.nextElementSibling;
+  while (nx && !nx.querySelector(`input[data-f="${e.target.dataset.f}"]:not(:disabled)`)) nx = nx.nextElementSibling;
+  if (nx) { const i = nx.querySelector(`input[data-f="${e.target.dataset.f}"]`); i.focus(); i.select(); }
+});
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('button[data-loose]'); if (t && ST.S) addLooseOf(t.dataset.loose); });
+let autosave = null;
+function markDirty(id) { ST.dirty.add(id); updDirty(); clearTimeout(autosave); autosave = setTimeout(() => { if (ST.dirty.size) saveDirty().catch(() => {}); }, 20000); }
+async function saveDirty() {
+  if (ST.saving || !ST.dirty.size || !ST.S) return;
+  ST.saving = true; const ids = [...ST.dirty]; const lines = ids.map(id => ST.S.map[id]).filter(Boolean); ids.forEach(id => ST.dirty.delete(id));
+  try { await run('saveLines', {id:ST.S.session.id, lines}); }
+  catch (e) { ids.forEach(id => ST.dirty.add(id)); throw e; }
+  finally { ST.saving = false; updDirty(); }
+}
+async function addLooseOf(id) {
+  const b = ST.S.map[id]; if (!b) return;
+  if (ST.S.lines.some(x => x.isExtra && x.pn === b.pn && x.brand === b.brand && String(x.remarks).indexOf('Disassembled / loose (baby') === 0)) return toast('Disassembled line already added', true);
+  const l = normLine({lineId:ST.S.session.id + '-X' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10), itemId:'', brand:b.brand, category:b.category, pn:b.pn, desc:b.desc, serial:'', lot:'', expiry:'', uom:b.uom, packSize:b.packSize, location:b.location, storage:b.storage, section:b.section, sysQty:b.sysQty, unitPrice:b.unitPrice, isExtra:'Y', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'Disassembled / loose (baby part, not attached to a mother)', motherId:'', babyOk:''});
+  ST.S.lines.push(l); ST.S.map[l.lineId] = l; ST.S.itemIds.delete(''); ST.dirty.add(l.lineId);
+  try { await saveDirty(); ST.S.session.lineCount++; ST.S.brand = l.brand; tabEncode(); toast('Disassembled line added — enter its counts. Fill in serial / lot / expiry if any.'); } catch (e) {}
+}
+function addExtraModal() {
+  const bs = brandsOf();
+  modal(`<h2>Item found, not on the list</h2><p class="mut small">Adds a line with system quantity 0. Enter its counts afterwards like any other line.</p>
+  <div class="fg"><div><label>Brand</label><select id="xB">${bs.map(b => `<option ${b === ST.S.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></div><div><label>Category</label><select id="xC">${CATS.map(c => `<option>${c}</option>`).join('')}</select></div>
+  <div><label>Part number</label><input id="xP"></div><div><label>UOM</label><input id="xU" list="uomL"><datalist id="uomL">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist></div>
+  <div style="grid-column:1/-1"><label>Description</label><input id="xD"></div><div><label>Serial no.</label><input id="xS"></div><div><label>Lot no.</label><input id="xL"></div><div><label>Expiry date</label><input id="xE" type="date"></div><div><label>Location</label><input id="xO"></div><div><label>Pack size (pieces per full UOM)</label><input id="xK" type="number" min="0"></div></div>
+  <label class="small" style="display:block;margin-top:10px"><input type="checkbox" id="xM"> Also add to the item master (so it appears on future counts)</label>
+  <div class="row" style="margin-top:14px"><span class="sp"></span><button id="xX">Cancel</button><button class="pri" id="xOK">Add line</button></div>`);
+  $('#xX').onclick = closeModal;
+  $('#xOK').onclick = async () => {
+    if (!$('#xP').value.trim() && !$('#xD').value.trim()) return toast('Enter a part number or description', true);
+    const cat = $('#xC').value, l = normLine({lineId:ST.S.session.id + '-X' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10), itemId:'', brand:$('#xB').value, category:cat, pn:$('#xP').value.trim(), desc:$('#xD').value.trim(), serial:$('#xS').value.trim(), lot:$('#xL').value.trim(), expiry:$('#xE').value, uom:$('#xU').value.trim(), packSize:$('#xK').value, location:$('#xO').value.trim(), storage:'', section:'Active', sysQty:0, unitPrice:'', isExtra:'Y', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:'', babyOk:''});
+    ST.S.lines.push(l); ST.S.map[l.lineId] = l; ST.S.brand = l.brand; ST.dirty.add(l.lineId);
+    try {
+      await saveDirty();
+      if ($('#xM').checked) { const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, packSize:l.packSize, location:l.location, storage:'', sysQty:0, unitPrice:'', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}}); ST.items.push(r); }
+      closeModal(); ST.S.session.lineCount++; tabEncode(); toast('Line added');
+    } catch (e) {}
+  };
+}
+
+/* ---------- tab 3: compare & review ---------- */
+function tabReview() {
+  const S = ST.S, sm = summary(), ed = canEdit();
+  $('#tab').innerHTML = `<div class="cards" id="sumCards"></div>
+  <div class="row" style="margin-bottom:10px"><div class="pills" id="rf">${[['recount','Needs recount'],['variance','Variances vs system'],['all','All lines']].map(f => `<button data-f="${f[0]}" class="${S.rf === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div><select id="rb"><option value="">All brands</option>${brandsOf().map(b => `<option ${S.rb === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><span class="sp"></span>${ed ? '<button id="saveB" class="pri">Save</button>' : ''}</div>
+  <p class="mut small" style="margin:0 0 8px">When counter and checker differ, a third person recounts and the recount becomes the final count. Every line where final count ≠ system quantity needs a reason.</p>
+  <div class="tw" style="max-height:66vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th><th class="num">Counter</th><th class="num">Checker</th><th class="num" style="background:#fff4de">Recount<br>Full</th><th class="num" style="background:#fff4de">Recount<br>Loose</th><th>Recount by</th><th class="num">Final</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody id="rBody"></tbody></table></div>`;
+  document.querySelectorAll('#rf button').forEach(b => b.onclick = () => { S.rf = b.dataset.f; tabReview(); });
+  $('#rb').onchange = e => { S.rb = e.target.value; fillReview(); };
+  if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
+  paintCards(); fillReview();
+}
+function paintCards() {
+  const sm = summary(), c = $('#sumCards'); if (!c) return;
+  c.innerHTML = [[sm.lines, 'Lines'], [sm.pending, 'Not yet encoded'], [sm.match + sm.recounted, 'Counts agreed'], [sm.mismatch, 'Need recount'], [sm.varLines, 'Lines with variance'], [sm.noReason, 'Variances w/o reason'], [sm.babyPending + sm.babyBad, 'Baby parts to resolve'], [peso(sm.net), 'Net variance value']].map(x => `<div class="stat"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('');
+}
+function reviewLines() {
+  const S = ST.S;
+  return S.lines.filter(l => !S.rb || l.brand === S.rb)
+    .filter(l => { const c = calc(l); if (isBaby(l)) return S.rf === 'variance' ? (c.st === 'babybad' || c.st === 'babymiss') : S.rf === 'all'; if (S.rf === 'recount') return c.st === 'mismatch' || c.st === 'recounted'; if (S.rf === 'variance') return c.v != null && Math.abs(c.v) > 1e-9; return true; })
+    .sort((a, b) => a.brand.localeCompare(b.brand) || String(a.pn).localeCompare(String(b.pn)));
+}
+function fillReview() {
+  const ed = canEdit(), rows = reviewLines().slice(0, 600);
+  $('#rBody').innerHTML = rows.map(l => reviewRow(l, ed)).join('') || '<tr><td colspan="16" class="mut" style="padding:20px">Nothing to show here.</td></tr>';
+  const all = reviewLines().length; if (all > 600) $('#rBody').insertAdjacentHTML('beforeend', `<tr><td colspan="16" class="mut">Showing first 600 of ${all} lines. Filter by brand to see the rest.</td></tr>`);
+}
+function reviewRow(l, ed) {
+  if (isBaby(l)) { const m = motherOf(l), c = calc(l); return `<tr data-r="${esc(l.lineId)}" style="background:#f6f7fb"><td>${esc(l.brand)}</td><td>↳ ${esc(l.pn)}</td><td>${esc(l.desc)} <span class="badge">baby of ${esc(m ? m.pn : '')}</span></td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td colspan="9">${stHtml(c)}${l.remarks ? ' — actual: ' + esc(l.remarks) : ''}</td><td colspan="2"></td></tr>`; }
+  const c = calc(l), pk = N(l.packSize) > 0, id = esc(l.lineId), needRe = c.st === 'mismatch' || c.st === 'recounted';
+  const q = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${id}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
+  const cnt = (F, Lo) => N(F) == null ? '—' : fq(tot(F, Lo, N(l.packSize) || 0));
+  const hasVar = c.v != null && Math.abs(c.v) > 1e-9;
+  return `<tr data-r="${id}"><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}${l.section === 'Expired' ? ' <span class="badge b-bad">expired</span>' : ''}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${cnt(l.cF, l.cL)}</td><td class="num">${cnt(l.kF, l.kL)}</td>
+  <td class="num">${needRe ? q('rF') : ''}</td><td class="num">${needRe ? q('rL', !pk) : ''}</td><td>${needRe ? `<input data-l="${id}" data-t="recountBy" value="${esc(l.recountBy)}" style="width:110px" ${ed ? '' : 'disabled'}>` : ''}</td>
+  <td class="num c-final">${c.total != null ? fq(c.total) : '<span class="st-x">pending</span>'}</td><td class="num c-var ${hasVar ? (c.v < 0 ? 'neg' : 'pos') : ''}">${c.v != null ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td class="num c-val ${hasVar ? (c.val < 0 ? 'neg' : 'pos') : ''}">${hasVar && N(l.unitPrice) ? peso(c.val) : ''}</td>
+  <td class="c-reason">${hasVar ? `<select data-l="${id}" data-t="reason" ${ed ? '' : 'disabled'}><option value="">— reason —</option>${REASONS.map(r => `<option ${l.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : ''}</td><td><input data-l="${id}" data-t="remarks" value="${esc(l.remarks)}" style="width:150px" ${ed ? '' : 'disabled'}></td></tr>`;
+}
+function refreshReviewRow(id) {
+  const tr = document.querySelector(`tr[data-r="${CSS.escape(id)}"]`); if (!tr || !tr.querySelector('.c-final')) return;
+  const l = ST.S.map[id], c = calc(l), hasVar = c.v != null && Math.abs(c.v) > 1e-9, ed = canEdit();
+  tr.querySelector('.c-final').innerHTML = c.total != null ? fq(c.total) : '<span class="st-x">pending</span>';
+  const v = tr.querySelector('.c-var'); v.textContent = c.v != null ? (c.v > 0 ? '+' : '') + fq(c.v) : ''; v.className = 'num c-var ' + (hasVar ? (c.v < 0 ? 'neg' : 'pos') : '');
+  const val = tr.querySelector('.c-val'); val.textContent = hasVar && N(l.unitPrice) ? peso(c.val) : ''; val.className = 'num c-val ' + (hasVar ? (c.val < 0 ? 'neg' : 'pos') : '');
+  const rs = tr.querySelector('.c-reason'); if (hasVar && !rs.querySelector('select')) rs.innerHTML = `<select data-l="${esc(id)}" data-t="reason" ${ed ? '' : 'disabled'}><option value="">— reason —</option>${REASONS.map(r => `<option ${l.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>`; if (!hasVar) rs.innerHTML = '';
+  paintCards();
+}
+['input', 'change'].forEach(ev => document.addEventListener(ev, e => {
+  const t = e.target; if (!t.dataset || !t.dataset.t || !ST.S) return; if (ev === 'input' && t.tagName === 'SELECT') return;
+  const l = ST.S.map[t.dataset.l]; if (!l) return; l[t.dataset.t] = t.value; markDirty(l.lineId); const tr0 = t.closest('tr'); if (tr0 && tr0.querySelector('td.st')) tr0.querySelector('td.st').innerHTML = stHtml(calc(l)); paintCards();
+}));
+
+/* ---------- tab 4: report & sign ---------- */
+function varLines() { return ST.S.lines.filter(l => { const c = calc(l); return c.v != null && Math.abs(c.v) > 1e-9; }).sort((a, b) => a.brand.localeCompare(b.brand) || String(a.pn).localeCompare(String(b.pn))); }
+function tabReport() {
+  const S = ST.S, s = S.session, sm = summary(), vl = varLines(), sig = r => S.sigs.find(x => x.role === r);
+  const canSignV = ST.user.role === 'verifier' && s.status === 'Verification', canSignA = ST.user.role === 'approver' && s.status === 'Approval';
+  const sigBox = (role, label) => { const x = sig(role); return `<div class="card" style="flex:1;min-width:260px"><h3>${label}</h3>${x ? `<img src="${x.image}" style="max-height:70px;display:block"><div><b>${esc(x.name)}</b></div><div class="small mut">${new Date(x.signedAt).toLocaleString()}</div>` : '<div class="mut">Not yet signed</div>'}</div>`; };
+  $('#tab').innerHTML = `<div class="cards">${[[sm.lines, 'Lines counted'], [sm.pending + sm.mismatch, 'Unresolved lines'], [sm.varLines, 'Lines with variance'], [peso(sm.short), 'Shortage value'], [peso(sm.over), 'Overage value'], [peso(sm.net), 'Net variance']].map(x => `<div class="stat"><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+  ${(sm.pending + sm.mismatch) ? '<div class="note">Some lines are not resolved yet — the report is not final.</div>' : ''}
+  <div class="row" style="margin-bottom:12px"><button id="rpF" class="pri">Print final report</button><button id="rpA">Print all results</button>${isEnc() ? '<button id="rpC">Print encoded-count confirmation (counter / checker)</button>' : ''}<span class="sp"></span>
+  ${canSignV || canSignA ? `<button class="pri" id="sgn">Sign as ${ST.user.role}</button><button class="danger" id="ret">Return to encoder</button>` : ''}
+  ${isEnc() && s.status === 'Verification' ? '<span class="mut small">Waiting for verifier’s signature</span>' : ''}</div>
+  <div class="row" style="align-items:stretch">${sigBox('verifier', 'Verified by')}${sigBox('approver', 'Approved by')}</div>
+  ${babyTable()}
+  <h3>Variances (${vl.length})</h3><div class="tw" style="max-height:56vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th><th class="num">Counted</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody>
+  ${vl.slice(0, 800).map(l => { const c = calc(l); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${fq(c.total)}</td><td class="num ${c.v < 0 ? 'neg' : 'pos'}">${c.v > 0 ? '+' : ''}${fq(c.v)}</td><td class="num">${N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)}</td><td>${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="mut" style="padding:16px">No variances.</td></tr>'}</tbody></table></div>`;
+  $('#rpF').onclick = () => printReport(false); $('#rpA').onclick = () => printReport(true);
+  if ($('#rpC')) $('#rpC').onclick = () => printSheets({kind:'confirm', copy:'Both', brand:''});
+  if ($('#sgn')) $('#sgn').onclick = signModal;
+  if ($('#ret')) $('#ret').onclick = () => {
+    modal(`<h2>Return to encoder</h2><p class="mut small">The count goes back to Review and existing signatures are cleared. Say what needs to be fixed.</p><textarea id="rtN" rows="3" style="width:100%"></textarea><div class="row" style="margin-top:12px"><span class="sp"></span><button id="rtX">Cancel</button><button class="danger" id="rtOK">Return</button></div>`);
+    $('#rtX').onclick = closeModal;
+    $('#rtOK').onclick = async () => { try { const r = await run('setStatus', {id:s.id, status:'Review', note:$('#rtN').value}); closeModal(); ST.S.session = r; ST.sessions[ST.sessions.findIndex(x => x.id === r.id)] = r; const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderSession(); toast('Returned to encoder'); } catch (e) {} };
+  };
+}
+function babyIssues() { return ST.S.lines.filter(l => isBaby(l) && (l.babyOk === 'N' || l.babyOk === 'M')); }
+function babyTable() {
+  const b = babyIssues(); if (!b.length) return '';
+  return `<h3>Baby part discrepancies (${b.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th class="ser">System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${b.map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table></div>`;
+}
+function signModal() {
+  const role = ST.user.role;
+  modal(`<h2>Sign as ${role}</h2><p class="mut small">${esc(ST.S.session.name)} — draw your signature and enter your PIN to confirm.</p>
+  <canvas class="sig" id="cv" width="420" height="150"></canvas><div class="small mut">Draw with mouse, finger or pen.</div>
+  <div class="row" style="margin-top:10px"><label>PIN</label><input id="sgP" type="password" inputmode="numeric" maxlength="8" style="width:120px"><button id="sgC">Clear</button><span class="sp"></span><button id="sgX">Cancel</button><button class="pri" id="sgOK">Sign</button></div>`);
+  const cv = $('#cv'), cx = cv.getContext('2d'); cx.lineWidth = 2.2; cx.lineCap = 'round'; cx.strokeStyle = '#111'; let down = false, any = false;
+  const pt = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
+  cv.onpointerdown = e => { down = true; any = true; const p = pt(e); cx.beginPath(); cx.moveTo(p[0], p[1]); cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!down) return; const p = pt(e); cx.lineTo(p[0], p[1]); cx.stroke(); };
+  cv.onpointerup = () => { down = false; };
+  $('#sgC').onclick = () => { cx.clearRect(0, 0, cv.width, cv.height); any = false; }; $('#sgX').onclick = closeModal;
+  $('#sgOK').onclick = async () => {
+    if (!any) return toast('Please draw your signature', true);
+    const tmp = document.createElement('canvas'); tmp.width = 300; tmp.height = 107; const t = tmp.getContext('2d'); t.fillStyle = '#fff'; t.fillRect(0, 0, 300, 107); t.drawImage(cv, 0, 0, 300, 107);
+    try { const r = await run('sign', {id:ST.S.session.id, pin:$('#sgP').value, image:tmp.toDataURL('image/png')}); closeModal(); const g = await run('getSession', {id:r.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast('Signed'); } catch (e) {}
+  };
+}
+
+
+/* ---------- logistics pre-count ---------- */
+const PRE = {brand:'', q:''};
+const preOpen = () => { const s = ST.S.session; return (ST.user.role === 'logistics' && s.status === 'Open') || (isEnc() && (s.status === 'Open' || s.status === 'Submitted')); };
+const isoD = v => v === '' || /^\d{4}-\d\d-\d\d$/.test(String(v || ''));
+function renderPre() {
+  const S = ST.S, s = S.session, ed = preOpen(), enc = isEnc(), bs = [...new Set(S.lines.map(l => l.brand))].sort();
+  if (!PRE.brand || bs.indexOf(PRE.brand) < 0) PRE.brand = bs[0] || '';
+  $('#main').innerHTML = `<div class="row"><button id="bk">← Back</button><h2 style="margin:0">${esc(s.name)}</h2>${stBadge(s.status)}<span class="mut small">Pre-count · ${esc(s.date)}</span><span class="sp"></span><span class="small mut" id="dirtyTag"></span>
+  ${s.status === 'Open' && ST.user.role === 'logistics' ? '<button class="pri" id="pSub">Sign &amp; submit</button>' : ''}
+  ${enc && s.status === 'Open' ? '<span class="badge b-warn">Waiting for logistics to submit</span>' : ''}
+  ${enc && s.status === 'Submitted' ? '<button id="pRe">↩ Reopen for logistics</button><button class="pri" id="pAp">Apply to item master</button>' : ''}
+  ${enc && s.status === 'Open' ? '<button id="pLk" title="Re-read mother/baby links from the item master">↻ Refresh baby links</button>' : ''}${enc ? '<button id="pPr">Print this brand</button><button id="pPrA">Print all brands</button>' : ''}</div>
+  ${s.status === 'Submitted' && !enc ? '<div class="note">Submitted and signed. Thank you.</div>' : ''}
+  ${s.status === 'Applied' ? '<div class="note">This pre-count has been applied to the item master.</div>' : ''}
+  <div class="row" style="margin:10px 0"><select id="pB">${bs.map(b => `<option ${b === PRE.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select><input id="pQ" placeholder="Search PN / description / serial / lot" value="${esc(PRE.q)}" style="min-width:240px"><span class="sp"></span>${ed ? '<button id="pAdd">+ Add serial / lot row</button><button id="pNew">+ New item not on the list</button>' : ''}</div>
+  <div class="tw" style="max-height:70vh"><table class="t pre"><thead><tr><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial no.</th><th>Lot no.</th><th>Expiry</th><th>Location</th><th class="num">Full<div class="small mut">sealed UOM</div></th><th class="num">Loose<div class="small mut">qty</div></th><th>Loose in<div class="small mut">unit</div></th><th>Remarks</th></tr></thead><tbody id="pBody"></tbody></table></div><datalist id="luL">${['pc','tests','vial','bottle','box','kit','pack','unit','ml','set'].map(u => `<option>${u}</option>`).join('')}</datalist>
+  <p class="small mut">Full = sealed units (box, kit, bottle…). Loose = loose pieces inside an opened pack. Change serial, lot, expiry or location if the label differs. “+ Add serial / lot row” adds another lot of the same part; “+ New item” is for items not on the list.</p>`;
+  $('#bk').onclick = async () => { if (await leaveOk()) { ST.S = null; render(); } };
+  $('#pB').onchange = e => { PRE.brand = e.target.value; fillPre(); };
+  $('#pQ').oninput = e => { PRE.q = e.target.value; fillPre(); };
+  if ($('#pSub')) $('#pSub').onclick = async () => { if (!(await leaveOk())) return; signModal(); };
+  if ($('#pAdd')) $('#pAdd').onclick = () => preAddModal(false); if ($('#pNew')) $('#pNew').onclick = () => preAddModal(true);
+  if ($('#pRe')) $('#pRe').onclick = async () => { if (!confirm('Reopen for logistics? Their signature is cleared.')) return; try { const r = await run('setStatus', {id:s.id, status:'Open'}); const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderPre(); } catch (e) {} };
+  if ($('#pAp')) $('#pAp').onclick = async () => { if (!confirm('Apply to item master?\nNew items are added and changed serial / lot / expiry / location are updated. System quantities are not changed.')) return; try { const r = await run('applyPre', {id:s.id}); toast(`Applied: ${r.added} new, ${r.updated} updated`); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderPre(); } catch (e) {} };
+  if ($('#pPr')) $('#pPr').onclick = () => printPre(false); if ($('#pPrA')) $('#pPrA').onclick = () => printPre(true);
+  if ($('#pLk')) $('#pLk').onclick = refreshLinks;
+  $('#pBody').addEventListener('input', preInput); $('#pBody').addEventListener('change', preInput);
+  fillPre(); updDirty();
+}
+async function refreshLinks() {
+  if (!(await leaveOk())) return;
+  try { const r = await run('refreshLinks', {id:ST.S.session.id}); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:ST.S.session.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast(r.changed ? `${r.changed} line(s) updated with mother/baby links` : 'Links already up to date'); } catch (e) {}
+}
+function preInput(e) {
+  const t = e.target, id = t.dataset.l, f = t.dataset.f; if (!id || !f) return;
+  const l = ST.S.map[id]; if (!l) return;
+  l[f] = (f === 'cF' || f === 'cL') ? (t.value === '' ? '' : Number(t.value)) : t.value;
+  markDirty(id);
+}
+function fillPre() {
+  const S = ST.S, ed = preOpen(), q = PRE.q.trim().toLowerCase();
+  const hit = l => !q || [l.pn, l.desc, l.serial, l.lot].join(' ').toLowerCase().indexOf(q) >= 0;
+  const kids = {}; S.lines.filter(isBaby).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
+  const tops = S.lines.filter(l => l.brand === PRE.brand && !isBaby(l) && (hit(l) || (kids[l.itemId] || []).some(hit)))
+    .sort((a, b) => (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)));
+  const ls = []; tops.forEach(l => { ls.push(l); (kids[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
+  const inp = (l, f) => ed ? `<input data-l="${esc(l.lineId)}" data-f="${f}" value="${esc(l[f])}">` : esc(l[f]);
+  $('#pBody').innerHTML = ls.map(l => { const x = !!l.isExtra, d = isoD(l.expiry), baby = isBaby(l), m = baby ? motherOf(l) : null;
+    const qty = baby
+      ? `<td colspan="3"><select data-l="${esc(l.lineId)}" data-f="babyOk" ${ed ? '' : 'disabled'}><option value="">— check part —</option><option value="Y" ${l.babyOk === 'Y' ? 'selected' : ''}>✓ present</option><option value="M" ${l.babyOk === 'M' ? 'selected' : ''}>✕ not present (0)</option></select></td>`
+      : `<td class="num">${ed ? `<input class="q" type="number" min="0" step="any" inputmode="decimal" data-l="${esc(l.lineId)}" data-f="cF" value="${l.cF === '' ? '' : l.cF}">` : fq(N(l.cF))}</td>
+    <td class="num">${ed ? `<input class="q" type="number" min="0" step="any" inputmode="decimal" data-l="${esc(l.lineId)}" data-f="cL" value="${l.cL === '' ? '' : l.cL}">` : fq(N(l.cL))}</td>
+    <td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="looseUom" list="luL" placeholder="e.g. pc" value="${esc(l.looseUom)}" style="min-width:60px;width:80px">` : esc(l.looseUom)}</td>`;
+    return `<tr class="${x ? 'xr' : ''}" ${baby ? 'style="background:#f6f7fb"' : ''}><td>${baby ? '↳' : esc(CAT_SHORT[l.category] || l.category)}${x ? ' <span class="badge b-warn">new</span>' : ''}</td>
+    <td>${baby ? '↳ ' : ''}${x && ed ? inp(l, 'pn') : esc(l.pn)}</td><td class="wr">${x && ed ? inp(l, 'desc') : esc(l.desc)}${baby ? `<div class="small mut">baby part of ${esc(m ? m.pn : '')} — do not count, check only</div>` : ''}</td><td>${x && ed ? inp(l, 'uom') : esc(l.uom)}</td>
+    <td>${inp(l, 'serial')}</td><td>${inp(l, 'lot')}</td>
+    <td>${ed ? `<input data-l="${esc(l.lineId)}" data-f="expiry" type="${d ? 'date' : 'text'}" value="${esc(l.expiry)}">` : esc(l.expiry)}</td><td>${inp(l, 'location')}</td>
+    ${qty}<td class="wr">${inp(l, 'remarks')}</td></tr>`; }).join('') || '<tr><td colspan="12" class="mut" style="padding:14px">No lines.</td></tr>';
+}
+function preAddModal(isNew) {
+  const S = ST.S, bs = [...new Set(S.lines.map(l => l.brand))].sort(), cur = S.lines.filter(l => l.brand === PRE.brand && !l.isExtra);
+  modal(`<h2>${isNew ? 'New item not on the list' : 'Add serial / lot row'}</h2>
+  <div class="fg">${isNew ? `<div><label>Brand</label><input id="xB" list="brL" value="${esc(PRE.brand)}"><datalist id="brL">${bs.map(b => `<option>${esc(b)}</option>`).join('')}</datalist></div>
+  <div><label>Type</label><select id="xC">${CATS.map(c => `<option>${c}</option>`).join('')}</select></div><div><label>Part number</label><input id="xP"></div><div><label>UOM</label><input id="xU" list="uomL"><datalist id="uomL">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist></div>
+  <div style="grid-column:1/-1"><label>Description</label><input id="xD"></div>` : `<div style="grid-column:1/-1"><label>Which part? (${esc(PRE.brand)})</label><select id="xI">${cur.map((l, i) => `<option value="${i}">${esc(l.pn)} — ${esc(l.desc)}</option>`).join('')}</select></div>`}
+  <div><label>Serial no.</label><input id="xS"></div><div><label>Lot no.</label><input id="xL"></div><div><label>Expiry date</label><input id="xE" type="date"></div><div><label>Location</label><input id="xO"></div><div><label>Full</label><input id="xF" type="number" min="0" step="any"></div><div><label>Loose</label><input id="xLo" type="number" min="0" step="any"></div><div><label>Loose in (unit)</label><input id="xLu" list="uomL" placeholder="e.g. pc"></div></div>
+  <div class="row" style="margin-top:14px"><span class="sp"></span><button id="xX">Cancel</button><button class="pri" id="xOK">Add</button></div>`);
+  $('#xX').onclick = closeModal;
+  $('#xOK').onclick = async () => {
+    let b = {brand:PRE.brand, category:'', pn:'', desc:'', uom:'', packSize:''};
+    if (isNew) { b = {brand:$('#xB').value.trim(), category:$('#xC').value, pn:$('#xP').value.trim(), desc:$('#xD').value.trim(), uom:$('#xU').value.trim(), packSize:''}; if (!b.brand || (!b.pn && !b.desc)) return toast('Enter brand and a part number or description', true); }
+    else { const s = cur[+$('#xI').value]; if (!s) return toast('Pick a part', true); b = {brand:s.brand, category:s.category, pn:s.pn, desc:s.desc, uom:s.uom, packSize:s.packSize}; }
+    const l = normLine(Object.assign({lineId:S.session.id + '-X' + Date.now().toString(36).toUpperCase() + Math.floor(Math.random() * 90 + 10), itemId:'', section:'Active', isExtra:'Y', serial:$('#xS').value.trim(), lot:$('#xL').value.trim(), expiry:$('#xE').value, location:$('#xO').value.trim(), cF:$('#xF').value, cL:$('#xLo').value, looseUom:$('#xLu').value.trim(), kF:'', kL:'', rF:'', rL:'', remarks:'', sysQty:'', unitPrice:'', reason:'', recountBy:'', motherId:'', babyOk:'', storage:''}, b));
+    S.lines.push(l); S.map[l.lineId] = l; S.itemIds.delete(''); PRE.brand = l.brand; ST.dirty.add(l.lineId);
+    try { await saveDirty(); closeModal(); S.session.lineCount++; renderPre(); toast('Row added'); } catch (e) {}
+  };
+}
+function printPre(all) {
+  const S = ST.S, s = S.session, sg = (S.sigs || []).filter(x => x.role === 'logistics').pop();
+  const kd = {}; S.lines.filter(isBaby).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
+  const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)))
+    .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
+  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td>${esc(l.serial)}</td><td>${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>${isBaby(l) ? `<td colspan="2">${l.babyOk === 'Y' ? '✓ present' : (l.babyOk === 'M' ? 'NOT PRESENT (0)' : '')}</td>` : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}${N(l.cL) != null && l.looseUom ? ' ' + esc(l.looseUom) : ''}</td>`}<td>${l.isExtra ? 'NEW ITEM ' : ''}${esc(l.remarks)}</td></tr>`;
+  doPrint(`<div class="sheet"><h2>Logistics pre-count — ${esc(s.name)}</h2><table class="ps"><thead><tr><th>Brand</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th>Serial</th><th>Lot</th><th>Expiry</th><th>Location</th><th>Full</th><th>Loose</th><th>Remarks</th></tr></thead><tbody>${ls.map(row).join('')}</tbody></table>
+  <div class="sg"><div>${sg && sg.image ? `<img src="${sg.image}">` : ''}Logistics: ${esc(sg ? sg.name : '')} ${sg ? esc(String(sg.signedAt || '').slice(0, 10)) : ''}</div><div>Signature (wet ink)</div></div></div>`, 'pre-count');
+}
+
+/* ---------- printing ---------- */
+const PV = {name:'count-sheets'};
+function doPrint(html, name) { $('#printArea').innerHTML = html; PV.name = (name || 'count-sheets').replace(/[^\w\- ]+/g, '').trim().replace(/\s+/g, '_') || 'count-sheets'; $('#pvT').textContent = 'Preview — ' + (name || 'sheets'); document.body.classList.add('preview'); $('#pvBar').style.display = 'flex'; $('#printArea').scrollTop = 0; }
+function closePreview() { document.body.classList.remove('preview'); $('#pvBar').style.display = 'none'; $('#printArea').innerHTML = ''; }
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('preview')) closePreview(); });
+$('#pvClose').onclick = closePreview;
+$('#pvPrint').onclick = () => { try { window.print(); } catch (e) { toast('Printing is blocked here. Use "Save as file", open the file in Chrome or Edge, then press Ctrl+P.', true); } };
+$('#pvSave').onclick = () => {
+  const css = document.querySelector('style').textContent, body = $('#printArea').innerHTML;
+  const doc = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(PV.name)}</title><style>${css}#printArea{display:block!important;position:static!important;background:#fff!important;padding:0!important;font-size:9pt!important;overflow:visible!important}.sheet{box-shadow:none!important;width:auto!important;margin:0!important;padding:0!important}.nopr{position:fixed;top:8px;right:8px}@media print{.nopr{display:none}}</style></head><body><button class="nopr" onclick="window.print()">Print (A4 landscape)</button><div id="printArea">${body}</div></body></html>`;
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([doc], {type:'text/html'})); a.download = PV.name + '.html'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+  toast('Saved. Open the file in Chrome or Edge and press Ctrl+P (Cmd+P on Mac).');
+};
+const sortPrint = ls => ls.slice().sort((a, b) => (a.section === 'Expired') - (b.section === 'Expired') || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)) || String(a.serial).localeCompare(String(b.serial)));
+function sheetHtml(b, kind, copy) {
+  const S = ST.S, s = S.session, a = s.assign[b] || {}, ls = linesOfBrand(b), cols = kind === 'pre' ? 11 : 13, hasBaby = ls.some(isBaby);
+  const title = kind === 'pre' ? 'CONTROL SHEET — SYSTEM QUANTITIES (CONFIDENTIAL: DO NOT GIVE TO COUNTERS OR LOGISTICS)' : kind === 'blank' ? 'PRE-COUNT SHEET — LOGISTICS (NO SYSTEM QUANTITIES)' : (kind === 'confirm' ? `ENCODED COUNT CONFIRMATION — ${copy.toUpperCase()}` : `PHYSICAL COUNT SHEET — ${copy.toUpperCase()} COPY`);
+  const who = kind === 'confirm' ? (copy === 'Counter' ? a.c : a.k) : (copy === 'Counter' ? a.c : (copy === 'Checker' ? a.k : ''));
+  const head = kind === 'pre' ? ['#','Brand','Type','Part No.','Description','UOM','Serial No.','Lot No.','Exp. Date','Location','System Qty'] : ['#','Brand','Type','Part No.','Description','UOM','Serial No.','Lot No.','Exp. Date','Location','Full','Loose','Remarks'];
+  let rows = '', prev = null, nn = 0;
+  ls.forEach((l, i) => {
+    const baby = isBaby(l); if (!baby) nn++;
+    if (l.section !== prev) { if (l.section === 'Expired') rows += `<tr class="grp"><td colspan="${cols}">EXPIRED ITEMS</td></tr>`; prev = l.section; }
+    let tail;
+    if (kind === 'pre') tail = `<td style="text-align:right">${fq(N(l.sysQty))}</td>`;
+    else if (kind === 'confirm') { const F = copy === 'Counter' ? l.cF : l.kF, L = copy === 'Counter' ? l.cL : l.kL; tail = `<td style="text-align:right">${fq(N(F))}</td><td style="text-align:right">${fq(N(L))}</td><td></td>`; }
+    else tail = '<td class="w"></td><td></td><td></td>';
+    if (baby) {
+      if (kind === 'pre') tail = '<td style="text-align:center">—</td>';
+      else if (kind === 'confirm') tail = `<td colspan="3">${l.babyOk === 'Y' ? '✓ correct' : (l.babyOk === 'N' ? '<b>DIFFERENT:</b> ' + esc(l.remarks) : (l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' + esc(l.remarks) : ''))}</td>`;
+      else tail = '<td colspan="3" style="font-size:7pt">☐ correct &nbsp; ☐ different &nbsp; ☐ not present (0)<br>actual PN / serial / lot / exp:<br>&nbsp;</td>';
+    }
+    rows += `<tr${baby ? ' class="bb"' : ''}><td>${baby ? '↳' : nn}</td><td>${esc(l.brand)}</td><td>${CAT_SHORT[l.category] || ''}</td><td>${baby ? '↳ ' : ''}${esc(l.pn)}</td><td>${esc(l.desc)}${baby ? '<br><small><i>baby part — do not count</i></small>' : ''}</td><td>${uomTxt(l)}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}${l.storage ? `<br><small>${esc(l.storage)}</small>` : ''}</td>${tail}</tr>`;
+  });
+  if (kind === 'count' || kind === 'blank') {
+    rows += `<tr class="grp"><td colspan="${cols}">ITEMS FOUND BUT NOT ON THE LIST — write in (PN, description, UOM, serial / lot / expiry, location, quantity)</td></tr>`;
+    for (let k = 1; k <= 10; k++) rows += `<tr><td class="w">N${k}</td><td>${esc(b)}</td>${'<td></td>'.repeat(cols - 2)}</tr>`;
+  }
+  const line = '_______________________';
+  const pageSig = kind === 'pre' ? `Prepared by (signature): ${line} &nbsp; Date: ____________`
+    : (kind === 'confirm' ? `${copy} — signature (wet ink): ${line} &nbsp; Name: ${esc(who || '____________')} &nbsp; Date: ____________`
+    : `<b>${copy} — signature (wet ink) on EVERY page:</b> ${line} &nbsp; Name: ${esc(who || '____________')} &nbsp; Date &amp; time: ____________`);
+  const foot = kind === 'pre' ? `<div class="sg"><div>Prepared by (Tabulator) / Date</div><div>Checked by / Date</div></div>`
+    : (kind === 'confirm' ? `<p style="margin:8px 0 0">I confirm that the quantities above, as encoded in the system, match my count sheet.</p><div class="sg"><div>${esc(who || '')}<br>${copy} — Signature / Date</div><div>Encoder / Date</div></div>`
+    : `<div class="sg"><div>${copy} name: ${esc(who || '')}<br>Signature / Date &amp; time</div><div>Counting started / finished</div><div>Received by Tabulator / Date</div></div>`);
+  const W = kind === 'pre' ? [3,8,4,10,21,5,16,10,8,9,6] : [3,8,4,9,17,5,14,9,7,8,5,4,7];
+  return `<section class="sheet"><table class="ps"><colgroup>${W.map(w => `<col style="width:${w}%">`).join('')}</colgroup><thead><tr><td class="ttl" colspan="${cols}">${title}</td></tr><tr><td class="inf" colspan="${cols}"><b>${esc(s.name)}</b> · Session ${esc(s.id)} · Count date ${esc(s.date)} · <b>Brand: ${esc(b)}</b> · Counter: ${esc(a.c || '__________')} · Checker: ${esc(a.k || '__________')} · Type: Eqpt=Equipment, Rgt=Reagent, Cons=Plastic consumable, Accy=Accessory, Parts=Spare parts, Lic-SW=Licensed software${hasBaby && kind !== 'pre' ? ' · <b>↳ = baby part of the item above: DO NOT COUNT. Tick “correct”, or write the actual PN / serial / lot / expiry.</b>' : ''}</td></tr><tr>${head.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody><tfoot><tr><td class="sf" colspan="${cols}">${pageSig}</td></tr></tfoot></table>${foot}</section>`;
+}
+function printSheets(o) {
+  const S = ST.S, s = S.session, bs = brandsOf().filter(b => !o.brand || b === o.brand); let h = '';
+  if (o.kind === 'pre') {
+    h += `<section class="sheet"><h2>PRE-COUNT CHECKLIST &amp; CONTROL SUMMARY — ${esc(s.name)}</h2><p>Session ${esc(s.id)} · Count date ${esc(s.date)}</p>${s.notes ? `<p><b>Notes:</b> ${esc(s.notes)}</p>` : ''}
+    <ul style="list-style:none;padding:0">${['Receiving, deliveries, reservations and stock transfers are frozen for the count', 'Last DR no.: ____________   Last receiving / GRN no.: ____________', 'Damaged, defective and for-return items set aside and labelled', 'Items on loan / demo / for repair are listed and accounted for separately', 'Count areas tidied; items grouped by PN / lot; opened boxes identified', 'Counters and checkers briefed — counters and checkers must count independently', 'Count sheets pre-numbered and issued; unused sheets to be returned'].map(x => `<li>☐ ${x}</li>`).join('')}</ul>
+    <table><thead><tr><th>Brand</th><th>Lines</th><th>Counter</th><th>Checker</th><th>Sheets issued (Date / Time)</th></tr></thead><tbody>${brandsOf().map(b => { const a = s.assign[b] || {}; return `<tr><td>${esc(b)}</td><td>${linesOfBrand(b).filter(l => !isBaby(l)).length}</td><td>${esc(a.c || '')}</td><td>${esc(a.k || '')}</td><td class="w"></td></tr>`; }).join('')}</tbody></table>
+    <div class="sg"><div>Prepared by / Date</div><div>Approved by / Date</div></div></section>`;
+    if (o.brand) h = '';
+  }
+  bs.forEach(b => {
+    if (o.kind === 'count') { if (o.copy === 'Both') h += sheetHtml(b, 'count', 'Counter') + sheetHtml(b, 'count', 'Checker'); else h += sheetHtml(b, 'count', o.copy); }
+    else if (o.kind === 'confirm') h += sheetHtml(b, 'confirm', 'Counter') + sheetHtml(b, 'confirm', 'Checker');
+    else if (o.kind === 'blank') h += sheetHtml(b, 'blank', 'Logistics');
+    else h += sheetHtml(b, 'pre', '');
+  });
+  if (!h) return toast('Nothing to print', true);
+  
+  doPrint(h, `${s.name} — ${o.kind === 'pre' ? 'control sheet' : o.kind === 'blank' ? 'pre-count sheet (logistics)' : (o.kind === 'confirm' ? 'confirmation sheets' : 'counting sheets ' + o.copy)}${o.brand ? ' ' + o.brand : ''}`);
+}
+function printReport(full) {
+  const S = ST.S, s = S.session, sm = summary(), sig = r => S.sigs.find(x => x.role === r), vl = full ? S.lines.slice().sort((a, b) => a.brand.localeCompare(b.brand) || String(a.pn).localeCompare(String(b.pn))) : varLines();
+  const asg = Object.keys(s.assign).sort().map(b => `<tr><td>${esc(b)}</td><td>${esc(s.assign[b].c || '')}</td><td>${esc(s.assign[b].k || '')}</td></tr>`).join('');
+  const sg = (r, lab) => { const x = sig(r); return `<div>${x ? `<img src="${x.image}">${esc(x.name)}<br>` : ''}${lab}${x ? ' · e-signed ' + new Date(x.signedAt).toLocaleString() : ''}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>`; };
+  doPrint(`<section class="sheet"><table><thead><tr><td class="ttl" colspan="12">PHYSICAL COUNT ${full ? 'RESULTS' : 'VARIANCE REPORT'} — ${esc(s.name)}</td></tr><tr><td class="inf" colspan="12">Session ${esc(s.id)} · Count date ${esc(s.date)} · Status: <b>${esc(s.status)}</b> · Lines: ${sm.lines} · Lines with variance: ${sm.varLines} · Shortage ${peso(sm.short)} · Overage ${peso(sm.over)} · <b>Net ${peso(sm.net)}</b></td></tr>
+  <tr><th>Brand</th><th>Part No.</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th>System</th><th>Counter</th><th>Checker</th><th>Final</th><th>Variance</th><th>Value</th><th>Reason / Remarks</th></tr></thead><tbody>
+  ${vl.map(l => { const c = calc(l), cn = N(l.cF) == null ? '' : fq(tot(l.cF, l.cL, N(l.packSize) || 0)), kn = N(l.kF) == null ? '' : fq(tot(l.kF, l.kL, N(l.packSize) || 0)); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td style="text-align:right">${fq(c.sys)}</td><td style="text-align:right">${cn}</td><td style="text-align:right">${kn}</td><td style="text-align:right">${c.total != null ? fq(c.total) : ''}</td><td style="text-align:right">${c.v ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td style="text-align:right">${c.v && N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)} ${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="12">No variances.</td></tr>'}</tbody></table>
+  ${babyIssues().length ? `<p style="margin-top:10px"><b>Baby part discrepancies</b></p><table><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th>System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${babyIssues().map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' : ''}${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table>` : ''}
+  <p style="margin-top:10px"><b>Counters / checkers</b></p><table style="width:60%"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th></tr></thead><tbody>${asg}</tbody></table>
+  <div class="sg"><div>Prepared by (Tabulator): ${esc(s.createdBy)}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>${sg('verifier', 'Verified by')}${sg('approver', 'Approved by')}</div></section>`, `${s.name} — ${full ? 'results' : 'variance report'}`);
+}
+
+/* ---------- items ---------- */
+function issuesOf(i) {
+  const a = []; if (!i.category) a.push('Category'); if (!i.uom) a.push('UOM'); if (!i.pn) a.push('Part no.'); if (i.sysQty === '' || i.sysQty == null) a.push('System qty'); if (!i.location) a.push('Location');
+  if (i.category === 'Equipment' && !i.serial) a.push('Serial'); if (i.category === 'Reagent' && !i.lot) a.push('Lot'); if (i.category === 'Reagent' && !i.expiry) a.push('Expiry'); return a;
+}
+function renderItems() {
+  const F = ST.itemF, brands = [...new Set(ST.items.map(i => i.brand))].sort();
+  const list = ST.items.filter(i => (!F.brand || i.brand === F.brand) && (!F.cat || i.category === F.cat) && (!F.sec || i.section === F.sec) && (!F.issue || issuesOf(i).length || i.flags) && (!F.q || `${i.pn} ${i.desc} ${i.serial} ${i.lot}`.toLowerCase().includes(F.q.toLowerCase())) && i.active !== 'N');
+  const per = 100, pages = Math.max(1, Math.ceil(list.length / per)); if (ST.itemPage >= pages) ST.itemPage = 0;
+  const page = list.slice(ST.itemPage * per, ST.itemPage * per + per), nIssue = ST.items.filter(i => issuesOf(i).length).length;
+  $('#main').innerHTML = `<div class="row" style="margin-bottom:10px"><h2 class="sp" style="margin:0">Item master <span class="mut small">${ST.items.length} items · ${nIssue} with missing data</span></h2><button id="imp">Import CSV…</button><button class="pri" id="addI">+ Add item</button></div>
+  <div class="row" style="margin-bottom:10px"><input id="iq" placeholder="Search PN, description, serial, lot…" value="${esc(F.q)}" style="width:260px"><select id="ib"><option value="">All brands</option>${brands.map(b => `<option ${F.brand === b ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select>
+  <select id="ic"><option value="">All categories</option>${CATS.map(c => `<option ${F.cat === c ? 'selected' : ''}>${c}</option>`).join('')}</select><select id="is"><option value="">Active + Expired</option><option ${F.sec === 'Active' ? 'selected' : ''} value="Active">Active only</option><option ${F.sec === 'Expired' ? 'selected' : ''} value="Expired">Expired Items only</option></select>
+  <label class="small"><input type="checkbox" id="ii" ${F.issue ? 'checked' : ''}> only items needing attention</label><span class="sp"></span><span class="mut small">${list.length} shown · page ${ST.itemPage + 1}/${pages}</span><button id="ip" ${ST.itemPage ? '' : 'disabled'}>‹</button><button id="in" ${ST.itemPage < pages - 1 ? '' : 'disabled'}>›</button></div>
+  <div class="tw" style="max-height:70vh"><table class="t"><thead><tr><th>Brand</th><th>Type</th><th>PN</th><th>Description</th><th class="ser">Serial</th><th>Lot</th><th>Expiry</th><th>UOM</th><th class="num">Pack</th><th>Location</th><th class="num">System</th><th>Section</th><th>Attention</th></tr></thead><tbody>
+  ${page.map(i => `<tr style="cursor:pointer" data-i="${esc(i.id)}"><td>${esc(i.brand)}</td><td>${CAT_SHORT[i.category] || ''}</td><td>${esc(i.pn)}</td><td>${i.motherId ? (m => `<div><span class="badge b-pri" style="white-space:nowrap">↳ BABY of <b>${m ? esc(m.pn) : '?'}</b></span></div><div class="small mut" style="margin-bottom:2px">${m ? esc(m.brand) + ' · ' + esc(String(m.desc).slice(0, 30)) : ''}</div>` )(ST.items.find(x => x.id === i.motherId)) : ''}${esc(i.desc)}</td><td class="ser">${esc(i.serial)}</td><td class="lot">${esc(i.lot)}</td><td>${esc(i.expiry)}</td><td>${esc(i.uom)}</td><td class="num">${esc(i.packSize)}</td><td>${esc(i.location)}</td><td class="num">${esc(i.sysQty)}</td><td>${i.section === 'Expired' ? '<span class="badge b-bad">Expired</span>' : ''}</td><td>${issuesOf(i).map(x => `<span class="chip">${x}</span>`).join('')}${i.flags ? `<span class="small mut" title="${esc(i.flags)}"> ⓘ ${esc(String(i.flags).slice(0, 40))}</span>` : ''}</td></tr>`).join('') || '<tr><td colspan="13" class="mut" style="padding:20px">No items. Use “Import CSV…” to load the item master.</td></tr>'}</tbody></table></div>`;
+  const rr = () => { ST.itemPage = 0; renderItems(); };
+  $('#iq').onchange = e => { F.q = e.target.value; rr(); }; $('#ib').onchange = e => { F.brand = e.target.value; rr(); }; $('#ic').onchange = e => { F.cat = e.target.value; rr(); }; $('#is').onchange = e => { F.sec = e.target.value; rr(); }; $('#ii').onchange = e => { F.issue = e.target.checked; rr(); };
+  $('#ip').onclick = () => { ST.itemPage--; renderItems(); }; $('#in').onclick = () => { ST.itemPage++; renderItems(); };
+  $('#addI').onclick = () => itemModal(null); $('#imp').onclick = importModal;
+  document.querySelectorAll('tr[data-i]').forEach(tr => tr.onclick = () => itemModal(ST.items.find(i => i.id === tr.dataset.i)));
+}
+function itemModal(it) {
+  const n = !it; it = it || {brand:'', category:'', pn:'', desc:'', serial:'', lot:'', expiry:'', uom:'', packSize:'', location:'', storage:'', sysQty:'', unitPrice:'', notes:'', section:'Active', flags:'', active:''};
+  const f = (k, lab, type) => `<div><label>${lab}</label><input id="f_${k}" type="${type || 'text'}" value="${esc(it[k])}"></div>`;
+  modal(`<h2>${n ? 'Add item' : 'Edit item'}</h2><div class="fg">${f('brand', 'Brand')}<div><label>Category</label><select id="f_category"><option value=""></option>${CATS.map(c => `<option ${it.category === c ? 'selected' : ''}>${c}</option>`).join('')}</select></div>${f('pn', 'Part number')}${f('uom', 'UOM')}
+  <div style="grid-column:1/-1"><label>Description</label><input id="f_desc" value="${esc(it.desc)}"></div>${f('serial', 'Serial no.')}${f('lot', 'Lot no.')}${f('expiry', 'Expiry date (YYYY-MM-DD)')}${f('location', 'Location')}${f('storage', 'Storage (e.g. Chiller 2-8C)')}${f('looseUom', 'Loose UOM (what loose is counted in, e.g. pc, vial, test)')}${f('packSize', 'Pack size (how many loose units make 1 full UOM)', 'number')}${f('sysQty', 'System qty', 'number')}${f('unitPrice', 'Unit price (for variance value)', 'number')}
+  <div><label>Section</label><select id="f_section"><option ${it.section !== 'Expired' ? 'selected' : ''}>Active</option><option ${it.section === 'Expired' ? 'selected' : ''}>Expired</option></select></div><div><label>Status</label><select id="f_active"><option value="">In use</option><option value="N" ${it.active === 'N' ? 'selected' : ''}>Archived (hide from new counts)</option></select></div>
+  <div style="grid-column:1/-1;background:#f6f7fb;border-radius:8px;padding:10px" id="kidBox"><label style="color:var(--ink);font-weight:600">${n ? 'Baby parts: save this item first, then open it again to add its baby parts.' : 'Baby parts of THIS item (if this is a mother)'}</label>
+    ${n ? '' : `<div id="kidList" class="small" style="margin:6px 0"></div><div class="row"><input id="k_q" placeholder="type baby PN to find it" style="width:200px"><select id="k_s" style="flex:1"><option value="">—</option></select><button id="k_add" type="button">+ Add as baby</button></div>`}</div>
+  <div style="grid-column:1/-1"><label>Or: is THIS item itself a baby part? If yes: type the MOTHER's PN, then pick the mother. If no, leave as “not a baby part”. (Baby parts are checked on the sheet, not counted.)</label><div class="row"><input id="f_mpn" placeholder="mother PN" style="width:180px"><select id="f_mid" style="flex:1"><option value="">(not a baby part)</option></select></div></div>
+  <div style="grid-column:1/-1"><label>Note / flag (clear this once fixed)</label><input id="f_flags" value="${esc(it.flags)}"></div></div>
+  <div class="row" style="margin-top:14px"><span class="sp"></span><button id="fX">Cancel</button><button class="pri" id="fOK">Save</button></div>`);
+  let cur = it.motherId || ''; const fillM = () => { const v = $('#f_mpn').value.trim().toLowerCase(), c = v.length < 2 ? [] : ST.items.filter(x => x.id !== it.id && x.active !== 'N' && !x.motherId && String(x.pn).toLowerCase().includes(v)).slice(0, 25); $('#f_mid').innerHTML = '<option value="">' + (v.length < 2 ? '(not a baby part)' : (c.length ? '— pick the mother (' + c.length + ' match' + (c.length > 1 ? 'es' : '') + ') —' : '✗ no active item has a PN containing “' + esc($('#f_mpn').value.trim()) + '” — check the PN')) + '</option>' + c.map(x => `<option value="${esc(x.id)}">${esc(x.brand)} · ${esc(x.pn)} · ${esc(x.serial || x.lot || '—')} · ${esc(String(x.desc).slice(0, 40))}</option>`).join(''); if (cur && c.some(x => x.id === cur)) $('#f_mid').value = cur; else if (c.length === 1) $('#f_mid').value = c[0].id; };
+  if (cur) { const m = ST.items.find(x => x.id === cur); if (m) { $('#f_mpn').value = m.pn; fillM(); } }
+  $('#f_mpn').oninput = () => { cur = ''; fillM(); }; $('#f_mid').onchange = e => { cur = e.target.value; };
+  const kids = new Set(n ? [] : ST.items.filter(x => x.motherId === it.id).map(x => x.id)), was = new Set(kids);
+  const paintK = () => { if (n) return; $('#kidList').innerHTML = kids.size ? [...kids].map(id => { const x = ST.items.find(y => y.id === id) || {}; return `<div style="padding:2px 0">↳ <b>${esc(x.pn)}</b> · ${esc(x.brand)} · ${esc(String(x.desc).slice(0, 40))} ${x.serial || x.lot ? '· ' + esc(x.serial || x.lot) : ''} <button type="button" data-rm="${esc(id)}" class="small danger" style="padding:0 6px">✕ remove</button></div>`; }).join('') : '<span class="mut">No baby parts yet.</span>'; document.querySelectorAll('button[data-rm]').forEach(b => b.onclick = () => { kids.delete(b.dataset.rm); paintK(); }); };
+  const fillK = () => { const v = $('#k_q').value.trim().toLowerCase(), c = v.length < 2 ? [] : ST.items.filter(x => x.id !== it.id && x.active !== 'N' && !kids.has(x.id) && !(x.motherId && x.motherId !== it.id) && String(x.pn).toLowerCase().includes(v)).slice(0, 25); $('#k_s').innerHTML = '<option value="">' + (v.length < 2 ? '—' : (c.length ? 'pick the baby (' + c.length + ')' : '✗ no item with that PN')) + '</option>' + c.map(x => `<option value="${esc(x.id)}">${esc(x.brand)} · ${esc(x.pn)} · ${esc(x.serial || x.lot || '—')} · ${esc(String(x.desc).slice(0, 40))}</option>`).join(''); if (c.length === 1) $('#k_s').value = c[0].id; };
+  if (!n) { paintK(); $('#k_q').oninput = fillK; $('#k_add').onclick = () => { const id = $('#k_s').value; if (!id) return toast('Type the baby PN, then pick it from the list', true); kids.add(id); $('#k_q').value = ''; fillK(); paintK(); }; }
+  $('#fX').onclick = closeModal;
+  $('#fOK').onclick = async () => {
+    const o = Object.assign({}, it); o.motherId = $('#f_mid').value; ['brand','category','pn','uom','desc','serial','lot','expiry','location','storage','looseUom','packSize','sysQty','unitPrice','section','active','flags'].forEach(k => { o[k] = $('#f_' + k).value.trim(); }); o.brand = o.brand.toUpperCase();
+    if (kids.size && o.motherId) return toast('This item cannot be both a mother and a baby. Clear one of them.', true);
+    try { const r = await run('saveItem', {item:o}); const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; else ST.items.push(r);
+      for (const id of new Set([...kids, ...was])) { if (kids.has(id) === was.has(id)) continue; const b = ST.items.find(x => x.id === id); if (!b) continue; const nb = Object.assign({}, b, {motherId:kids.has(id) ? r.id : ''}); const rb = await run('saveItem', {item:nb}); ST.items[ST.items.findIndex(x => x.id === id)] = rb; }
+      closeModal(); renderItems(); toast('Item saved'); } catch (e) {}
+  };
+}
+function parseCSV(t) {
+  t = t.replace(/^﻿/, ''); const rows = []; let row = [], f = '', q = false;
+  for (let i = 0; i < t.length; i++) { const c = t[i];
+    if (q) { if (c === '"') { if (t[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+    else if (c === '"') q = true; else if (c === ',') { row.push(f); f = ''; } else if (c === '\n') { row.push(f); rows.push(row); row = []; f = ''; } else if (c !== '\r') f += c; }
+  if (f !== '' || row.length) { row.push(f); rows.push(row); } return rows;
+}
+function importModal() {
+  modal(`<h2>Import items from CSV</h2><p class="mut small">Use the cleaned <b>items.csv</b>. Columns: ${ITEM_FIELDS.join(', ')}.</p><input type="file" id="cf" accept=".csv,text/csv"><div style="margin:10px 0"><label><input type="radio" name="im" value="replace" checked> Replace the whole item master</label><br><label><input type="radio" name="im" value="append"> Add to existing items</label></div><div id="cp" class="small mut"></div>
+  <div class="row" style="margin-top:12px"><span class="sp"></span><button id="cX">Close</button><button class="pri" id="cOK" disabled>Import</button></div>`);
+  let items = [];
+  $('#cX').onclick = closeModal;
+  $('#cf').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return; const rows = parseCSV(await f.text()), h = rows[0].map(x => x.trim());
+    if (h.indexOf('brand') < 0 || h.indexOf('pn') < 0) { $('#cp').textContent = 'This does not look like items.csv (missing brand / pn columns).'; return; }
+    items = rows.slice(1).filter(r => r.some(x => x !== '')).map(r => { const o = {}; ITEM_FIELDS.forEach(k => { const i = h.indexOf(k); o[k] = i >= 0 ? (r[i] || '').trim() : ''; }); if (!o.id) o.id = 'ITM' + Math.random().toString(36).slice(2, 8).toUpperCase(); return o; });
+    const mi = h.indexOf('motherPn'); if (mi >= 0) { const data = rows.slice(1).filter(r => r.some(x => x !== '')); data.forEach((r, k) => { const mp = (r[mi] || '').trim().toLowerCase(); if (mp) { const m = items.find(x => x !== items[k] && String(x.pn).toLowerCase() === mp); if (m) items[k].motherId = m.id; } }); }
+    $('#cp').textContent = `${items.length} items ready.`; $('#cOK').disabled = !items.length;
+  };
+  $('#cOK').onclick = async () => {
+    const mode = document.querySelector('input[name=im]:checked').value;
+    if (mode === 'replace' && !confirm('Replace the entire item master? Existing count sessions keep their own copy and are not affected.')) return;
+    $('#cOK').disabled = true;
+    try { for (let i = 0; i < items.length; i += 400) { $('#cp').textContent = `Importing ${Math.min(i + 400, items.length)} / ${items.length}…`; await run('importItems', {mode, first:i === 0, items:items.slice(i, i + 400)}); }
+      const b = await run('bootstrap', {}); ST.items = b.items; closeModal(); renderItems(); toast(`Imported ${items.length} items`); } catch (e) { $('#cOK').disabled = false; }
+  };
+}
+
+/* ---------- users ---------- */
+function renderUsers() {
+  $('#main').innerHTML = `<div class="row" style="margin-bottom:10px"><h2 class="sp" style="margin:0">Users</h2><button class="pri" id="au">+ Add user</button></div>
+  <p class="mut small">Encoders enter data. Verifiers and approvers view and sign. Logistics type the pre-count only. Counters and checkers work on paper and do not need accounts.</p>
+  <div class="tw"><table class="t"><thead><tr><th>Name</th><th>Role</th><th>Status</th><th></th></tr></thead><tbody>${ST.users.map(u => `<tr><td>${esc(u.name)}</td><td>${esc(u.role)}</td><td>${u.active === 'N' ? '<span class="badge b-bad">disabled</span>' : 'active'}</td><td><button data-u="${esc(u.name)}">Edit / change PIN</button></td></tr>`).join('')}</tbody></table></div>`;
+  $('#au').onclick = () => userModal(null); document.querySelectorAll('button[data-u]').forEach(b => b.onclick = () => userModal(ST.users.find(u => u.name === b.dataset.u)));
+}
+function userModal(u) {
+  const n = !u; u = u || {name:'', role:'encoder', active:'Y'};
+  modal(`<h2>${n ? 'Add user' : 'Edit user'}</h2><div class="fg"><div><label>Name</label><input id="uN" value="${esc(u.name)}" ${n ? '' : 'disabled'}></div><div><label>Role</label><select id="uR">${['encoder', 'verifier', 'approver', 'logistics'].map(r => `<option ${u.role === r ? 'selected' : ''}>${r}</option>`).join('')}</select></div>
+  <div><label>${n ? 'PIN (4–8 digits)' : 'New PIN (leave blank to keep)'}</label><input id="uP" type="password" inputmode="numeric" maxlength="8"></div><div><label>Status</label><select id="uA"><option value="Y">Active</option><option value="N" ${u.active === 'N' ? 'selected' : ''}>Disabled</option></select></div></div>
+  <div class="row" style="margin-top:14px"><span class="sp"></span><button id="uX">Cancel</button><button class="pri" id="uOK">Save</button></div>`);
+  $('#uX').onclick = closeModal;
+  $('#uOK').onclick = async () => { try { const r = await run('saveUser', {name:$('#uN').value, role:$('#uR').value, pin:$('#uP').value, active:$('#uA').value}); const i = ST.users.findIndex(x => x.name === r.name); if (i >= 0) ST.users[i] = r; else ST.users.push(r); closeModal(); renderUsers(); toast('User saved'); } catch (e) {} };
+}
+boot();
+</script></body></html>
