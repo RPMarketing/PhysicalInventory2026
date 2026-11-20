@@ -312,7 +312,9 @@ function route(db, req) {
       if (!(sr.kind === 'pre' ? sr.status === 'Open' : (sr.status === 'Draft' || sr.status === 'Counting'))) throw new Error('Links can only be refreshed before counting is encoded');
       var itm = {}; db.all('Items').forEach(function (i) { itm[i.id] = i; });
       var rl = db.lines(d.id), chg = [];
-      rl.forEach(function (l) { var it = itm[l.itemId]; if (!it) return; var m = it.motherId || ''; if (String(l.motherId || '') !== String(m)) { l.motherId = m; if (!m) l.babyOk = ''; chg.push(l); } });
+      rl.forEach(function (l) { var it = itm[l.itemId]; if (!it) return; var m = it.motherId || ''; if (String(l.motherId || '') !== String(m)) { l.motherId = m; if (!m) l.babyOk = ''; chg.push(l); }
+        var ps = it.packSize === '' || it.packSize == null ? '' : Number(it.packSize), lu = it.looseUom || '';
+        if (String(l.packSize == null ? '' : l.packSize) !== String(ps) || String(l.looseUom || '') !== String(lu)) { l.packSize = ps; l.looseUom = lu; if (chg.indexOf(l) < 0) chg.push(l); } });
       if (chg.length) db.upsertLines(d.id, chg);
       return {changed:chg.length};
     }
@@ -968,7 +970,7 @@ function renderPre() {
 }
 async function refreshLinks() {
   if (!(await leaveOk())) return;
-  try { const r = await run('refreshLinks', {id:ST.S.session.id}); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:ST.S.session.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast(r.changed ? `${r.changed} line(s) updated with mother/baby links` : 'Links already up to date'); } catch (e) {}
+  try { const r = await run('refreshLinks', {id:ST.S.session.id}); const b = await run('bootstrap', {}); ST.items = b.items; const g = await run('getSession', {id:ST.S.session.id}); setSession(g, ST.S); g.session.kind === 'pre' ? renderPre() : renderSession(); toast(r.changed ? `${r.changed} line(s) updated (links, pack size, loose unit)` : 'Already up to date'); } catch (e) {}
 }
 const origOf = l => { try { return JSON.parse(l.orig || '{}'); } catch (e) { return {}; } };
 const chgOf = l => { if (!l.orig || l.isExtra) return []; const o = origOf(l); return ['pn', 'desc', 'uom', 'category'].filter(k => String(o[k] == null ? '' : o[k]).trim() !== String(l[k] == null ? '' : l[k]).trim()); };
