@@ -794,7 +794,7 @@ function fillEncode() {
     }
     nn++;
     const id0 = esc(l.lineId), pk = N(l.packSize) > 0, inp = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${esc(l.lineId)}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
-    h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${ed ? `<select data-l="${id0}" data-tx="category" style="width:68px;padding:3px 2px;font-size:12px"><option value=""></option>${CATS.map(c => `<option value="${c}" ${l.category === c ? 'selected' : ''}>${CAT_SHORT[c] || c}</option>`).join('')}</select>` : (CAT_SHORT[l.category] || '')}</td><td>${esc(l.pn)}${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}${lotsText(l) ? `<div class="mut" style="font-size:11px;white-space:normal;max-width:200px">${esc(lotsText(l))}</div>` : ''}${ed ? `<div class="lb"><button class="small" data-lots="${id0}" title="List the lot / serial numbers and quantities of this PN">${lotsText(l) ? '✎ Lots' : 'Lots'}</button><button class="small" data-lot="${id0}" title="Add another row for a different serial / lot / expiry">+ Row</button></div>` : ''}</td><td>${esc(l.desc)}</td><td>${ed ? `<input data-l="${id0}" data-tx="uom" list="uomList" placeholder="unit" value="${esc(l.uom)}" style="width:84px"><div class="small mut pk">1 ${esc(l.uom || 'unit')} = <input data-l="${id0}" data-tx="packSize" inputmode="numeric" placeholder="-" value="${esc(l.packSize)}"> <input data-l="${id0}" data-tx="looseUom" list="uomList" placeholder="pc" value="${esc(l.looseUom)}"></div>` : esc(l.uom) + (pk ? `<div class="small mut">loose = ${esc(l.looseUom || 'pc')}<br>${l.packSize} per ${esc(l.uom || 'unit')}</div>` : '')}${!pk && N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : ''}</td>${ed ? `<td class="ser"><input data-l="${id0}" data-tx="serial" value="${esc(l.serial)}" style="width:100px"></td><td class="lot"><input data-l="${id0}" data-tx="lot" value="${esc(l.lot)}" style="width:100px"></td><td><input type="date" data-l="${id0}" data-tx="expiry" value="${esc(l.expiry)}"></td>` : `<td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td>`}<td>${ed ? `<input data-l="${id0}" data-tx="location" value="${esc(l.location)}" style="width:110px" title="Edit here - it also updates Items">` : esc(l.location)}</td>
+    h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${ed ? `<select data-l="${id0}" data-tx="category" style="width:68px;padding:3px 2px;font-size:12px"><option value=""></option>${CATS.map(c => `<option value="${c}" ${l.category === c ? 'selected' : ''}>${CAT_SHORT[c] || c}</option>`).join('')}</select>` : (CAT_SHORT[l.category] || '')}</td><td>${esc(l.pn)}${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}${lotsText(l) ? `<div class="mut" style="font-size:11px;white-space:normal;max-width:200px">${esc(lotsText(l))}</div>` : ''}${ed ? `<div class="lb"><button class="small" data-lots="${id0}" title="List the lot / serial numbers and quantities of this PN">${lotsText(l) ? '✎ Lots' : 'Lots'}</button><button class="small" data-lot="${id0}" title="Add another row for a different serial / lot / expiry">+ Row</button></div>` : ''}</td><td>${esc(l.desc)}</td><td>${ed ? `<input data-l="${id0}" data-tx="uom" list="uomList" placeholder="unit" value="${esc(l.uom)}" style="width:84px"><div class="lb"><button class="small" data-lsetup="${id0}" title="Set the loose unit and how many loose pieces make one full unit">${pk ? '✎ ' + esc(l.packSize) + ' ' + esc(l.looseUom || 'pc') + ' / ' + esc(l.uom || 'unit') : '+ Loose'}</button></div>` : esc(l.uom) + (pk ? `<div class="small mut">${esc(l.packSize)} ${esc(l.looseUom || 'pc')} per ${esc(l.uom || 'unit')}</div>` : '')}${!pk && N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : ''}</td>${ed ? `<td class="ser"><input data-l="${id0}" data-tx="serial" value="${esc(l.serial)}" style="width:100px"></td><td class="lot"><input data-l="${id0}" data-tx="lot" value="${esc(l.lot)}" style="width:100px"></td><td><input type="date" data-l="${id0}" data-tx="expiry" value="${esc(l.expiry)}"></td>` : `<td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td>`}<td>${ed ? `<input data-l="${id0}" data-tx="location" value="${esc(l.location)}" style="width:110px" title="Edit here - it also updates Items">` : esc(l.location)}</td>
     <td class="num">${inp('cF')}</td><td class="num">${inp('cL', !pk)}</td><td class="num">${inp('kF')}</td><td class="num">${inp('kL', !pk)}</td><td class="st">${stHtml(calc(l))}</td></tr>`;
   });
   $('#eBody').innerHTML = h || '<tr><td colspan="14" class="mut" style="padding:20px">No lines.</td></tr>';
@@ -833,17 +833,34 @@ async function ensureItem(l) {
   const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, looseUom:l.looseUom || '', packSize:l.packSize, location:l.location, storage:l.storage || '', sysQty:0, unitPrice:l.unitPrice || '', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}});
   delete r._n; ST.items.push(r); l.itemId = r.id; markDirty(l.lineId); await saveDirty(); return r;
 }
+async function persistLine(l, rerender) {
+  const K = ['location', 'serial', 'lot', 'expiry', 'category', 'packSize', 'uom', 'looseUom'];
+  await saveDirty();
+  if (!l.itemId && (l.pn || l.desc)) { await ensureItem(l); toast('Saved - added to Items and linked'); }
+  else { const it = l.itemId ? ST.items.find(x => x.id === l.itemId) : null;
+    if (it && K.some(k => String(it[k] == null ? '' : it[k]) !== String(l[k] == null ? '' : l[k]))) { const up = {}; K.forEach(k => { up[k] = l[k]; }); const r = await run('saveItem', {item:Object.assign({}, it, up)}); const n = r._n || 0; delete r._n; const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; toast('Saved - Items updated' + (n ? ' · ' + n + ' count line(s) synced' : '')); }
+    else toast('Saved'); }
+  if (rerender) tabEncode();
+}
+function looseModal(id) {
+  const l = ST.S.map[id]; if (!l) return;
+  modal(`<h3 style="margin-top:0">Loose setup - ${esc(l.pn)}</h3><p class="mut" style="margin:0 0 10px">Use this when the item is counted in full units <b>and</b> loose pieces, for example 1 rack plus 6 loose bottles.</p>
+    <div class="fg"><div><label>Full unit (UOM)</label><input id="lmU" list="uomList" value="${esc(l.uom)}" placeholder="e.g. rack, box, case"></div>
+    <div><label>Loose unit</label><input id="lmL" list="uomList" value="${esc(l.looseUom)}" placeholder="e.g. bottle, pc, vial"></div>
+    <div><label>How many loose in 1 full unit?</label><input id="lmP" inputmode="numeric" value="${esc(l.packSize)}" placeholder="e.g. 10"></div></div>
+    <p id="lmEx" class="mut" style="margin:10px 0"></p>
+    <div class="row"><button type="button" id="lmClr" class="small">No loose for this item</button><span style="flex:1"></span><button type="button" id="lmX">Cancel</button><button type="button" id="lmOK" class="primary">Save</button></div>`);
+  const ex = () => { const u = $('#lmU').value.trim() || 'unit', lo = $('#lmL').value.trim() || 'pc', p = $('#lmP').value.trim(); $('#lmEx').innerHTML = p ? 'Example: <b>1 ' + esc(u) + ' = ' + esc(p) + ' ' + esc(lo) + '</b>. If the counter finds 1 ' + esc(u) + ' and 6 ' + esc(lo) + ', type <b>1</b> under Full and <b>6</b> under Loose.' : 'Enter the number of loose pieces in one full unit.'; };
+  ['#lmU', '#lmL', '#lmP'].forEach(i => $(i).oninput = ex); ex();
+  $('#lmX').onclick = closeModal;
+  $('#lmClr').onclick = async () => { l.packSize = ''; l.looseUom = ''; markDirty(l.lineId); closeModal(); try { await persistLine(l, true); } catch (e) {} };
+  $('#lmOK').onclick = async () => { const p = $('#lmP').value.trim(); if (p && !(Number(p) > 0)) return toast('Enter a number greater than 0', true); l.uom = $('#lmU').value.trim(); l.looseUom = $('#lmL').value.trim(); l.packSize = p === '' ? '' : Number(p); markDirty(l.lineId); closeModal(); try { await persistLine(l, true); } catch (e) {} };
+}
+document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('button[data-lsetup]'); if (t && ST.S) looseModal(t.dataset.lsetup); });
 document.addEventListener('change', async e => {
   const t = e.target, K = ['location', 'serial', 'lot', 'expiry', 'category', 'packSize', 'uom', 'looseUom']; if (!t.dataset || K.indexOf(t.dataset.tx) < 0 || !ST.S) return;
   const l = ST.S.map[t.dataset.l]; if (!l) return; l[t.dataset.tx] = t.value.trim(); markDirty(l.lineId);
-  try {
-    await saveDirty();
-    if (!l.itemId && (l.pn || l.desc)) { await ensureItem(l); toast('Saved - added to Items and linked'); if (['packSize', 'uom', 'looseUom'].indexOf(t.dataset.tx) >= 0) tabEncode(); return; }
-    const it = l.itemId ? ST.items.find(x => x.id === l.itemId) : null;
-    if (it && K.some(k => String(it[k] || '') !== String(l[k] || ''))) { const up = {}; K.forEach(k => { up[k] = l[k]; }); const r = await run('saveItem', {item:Object.assign({}, it, up)}); const n = r._n || 0; delete r._n; const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; toast('Saved - Items updated' + (n ? ' · ' + n + ' count line(s) synced' : '')); }
-    else toast('Saved');
-    if (['packSize', 'uom', 'looseUom'].indexOf(t.dataset.tx) >= 0) tabEncode();
-  } catch (er) {}
+  try { await persistLine(l, ['packSize', 'uom', 'looseUom'].indexOf(t.dataset.tx) >= 0); } catch (er) {}
 });
 async function addLotOf(id) {
   const b = ST.S.map[id]; if (!b) return;
