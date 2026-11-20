@@ -198,9 +198,9 @@ function route(db, req) {
         if (EDITABLE.indexOf(ss.status) < 0) return;
         var ch = [];
         db.lines(ss.id).forEach(function (l) {
-          if (l.itemId !== it.id || l.isExtra === 'Y') return;
+          if (l.itemId !== it.id) return;
           var df = false;
-          SYNC.forEach(function (k) { var nv = it[k] == null ? '' : it[k]; if (String(l[k] == null ? '' : l[k]) !== String(nv)) { l[k] = nv; df = true; } });
+          SYNC.forEach(function (k) { if (k === 'sysQty' && l.isExtra === 'Y') return; var nv = it[k] == null ? '' : it[k]; if (String(l[k] == null ? '' : l[k]) !== String(nv)) { l[k] = nv; df = true; } });
           if (df) ch.push(l);
         });
         if (ch.length) { db.upsertLines(ss.id, ch); nUp += ch.length; }
@@ -819,11 +819,17 @@ function lotsModal(id) {
     $('#lotOK').onclick = async () => { l.remarks = lotsSet(rows, g.rest); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0); if (sm > 0) { if ($('#lotC').checked) l.cF = fq(sm); if ($('#lotK').checked) l.kF = fq(sm); } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lots saved'); } catch (e) {} };
   }; paint();
 }
+async function ensureItem(l) {
+  if (l.itemId) return ST.items.find(x => x.id === l.itemId);
+  const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, looseUom:l.looseUom || '', packSize:l.packSize, location:l.location, storage:l.storage || '', sysQty:0, unitPrice:l.unitPrice || '', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}});
+  delete r._n; ST.items.push(r); l.itemId = r.id; markDirty(l.lineId); await saveDirty(); return r;
+}
 document.addEventListener('change', async e => {
   const t = e.target, K = ['location', 'serial', 'lot', 'expiry']; if (!t.dataset || K.indexOf(t.dataset.tx) < 0 || !ST.S) return;
   const l = ST.S.map[t.dataset.l]; if (!l) return; l[t.dataset.tx] = t.value.trim(); markDirty(l.lineId);
   try {
     await saveDirty();
+    if (!l.itemId && (l.pn || l.desc)) { await ensureItem(l); toast('Saved - added to Items and linked'); return; }
     const it = l.itemId ? ST.items.find(x => x.id === l.itemId) : null;
     if (it && K.some(k => String(it[k] || '') !== String(l[k] || ''))) { const up = {}; K.forEach(k => { up[k] = l[k]; }); const r = await run('saveItem', {item:Object.assign({}, it, up)}); const n = r._n || 0; delete r._n; const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; toast('Saved - Items updated' + (n ? ' · ' + n + ' count line(s) synced' : '')); }
     else toast('Saved');
@@ -866,7 +872,7 @@ function addExtraModal() {
   <div class="fg"><div><label>Brand</label><select id="xB">${bs.map(b => `<option ${b === ST.S.brand ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></div><div><label>Category</label><select id="xC">${CATS.map(c => `<option>${c}</option>`).join('')}</select></div>
   <div><label>Part number</label><input id="xP"></div><div><label>UOM</label><input id="xU" list="uomL"><datalist id="uomL">${UOMS.map(u => `<option>${u}</option>`).join('')}</datalist></div>
   <div style="grid-column:1/-1"><label>Description</label><input id="xD"></div><div><label>Serial no.</label><input id="xS"></div><div><label>Lot no.</label><input id="xL"></div><div><label>Expiry date</label><input id="xE" type="date"></div><div><label>Location</label><input id="xO"></div><div><label>Pack size (pieces per full UOM)</label><input id="xK" type="number" min="0"></div></div>
-  <label class="small" style="display:block;margin-top:10px"><input type="checkbox" id="xM"> Also add to the item master (so it appears on future counts)</label>
+  <label class="small" style="display:block;margin-top:10px"><input type="checkbox" id="xM" checked> Also add to the item master (keeps Items and this count in sync)</label>
   <div class="row" style="margin-top:14px"><span class="sp"></span><button id="xX">Cancel</button><button class="pri" id="xOK">Add line</button></div>`);
   $('#xX').onclick = closeModal;
   $('#xOK').onclick = async () => {
@@ -875,7 +881,7 @@ function addExtraModal() {
     ST.S.lines.push(l); ST.S.map[l.lineId] = l; ST.S.brand = l.brand; ST.dirty.add(l.lineId);
     try {
       await saveDirty();
-      if ($('#xM').checked) { const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, packSize:l.packSize, location:l.location, storage:'', sysQty:0, unitPrice:'', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}}); delete r._n; ST.items.push(r); }
+      if ($('#xM').checked) { const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, packSize:l.packSize, location:l.location, storage:'', sysQty:0, unitPrice:'', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}}); delete r._n; ST.items.push(r); l.itemId = r.id; markDirty(l.lineId); await saveDirty(); }
       closeModal(); ST.S.session.lineCount++; tabEncode(); toast('Line added');
     } catch (e) {}
   };
