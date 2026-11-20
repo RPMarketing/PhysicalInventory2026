@@ -193,8 +193,21 @@ function route(db, req) {
       if (!it.id) it.id = 'ITM' + Date.now().toString(36).toUpperCase();
       it.sysQty = numOrBlank(it.sysQty); it.unitPrice = numOrBlank(it.unitPrice); it.packSize = numOrBlank(it.packSize);
       db.upsert('Items', 'id', [it]);
-      log(db, u, 'saveItem', it.id + ' ' + (it.pn || it.desc));
-      return it;
+      var nUp = 0, SYNC = ['pn','desc','category','uom','looseUom','packSize','serial','lot','expiry','location','storage','unitPrice','sysQty','section'];
+      db.all('Sessions').forEach(function (ss) {
+        if (EDITABLE.indexOf(ss.status) < 0) return;
+        var ch = [];
+        db.lines(ss.id).forEach(function (l) {
+          if (l.itemId !== it.id || l.isExtra === 'Y') return;
+          var df = false;
+          SYNC.forEach(function (k) { var nv = it[k] == null ? '' : it[k]; if (String(l[k] == null ? '' : l[k]) !== String(nv)) { l[k] = nv; df = true; } });
+          if (df) ch.push(l);
+        });
+        if (ch.length) { db.upsertLines(ss.id, ch); nUp += ch.length; }
+      });
+      log(db, u, 'saveItem', it.id + ' ' + (it.pn || it.desc) + (nUp ? ' (+' + nUp + ' count lines)' : ''));
+      var out = {}; Object.keys(it).forEach(function (k) { out[k] = it[k]; }); out._n = nUp;
+      return out;
     }
     case 'importItems': {
       need(u, ['encoder']);
@@ -833,7 +846,7 @@ function addExtraModal() {
     ST.S.lines.push(l); ST.S.map[l.lineId] = l; ST.S.brand = l.brand; ST.dirty.add(l.lineId);
     try {
       await saveDirty();
-      if ($('#xM').checked) { const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, packSize:l.packSize, location:l.location, storage:'', sysQty:0, unitPrice:'', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}}); ST.items.push(r); }
+      if ($('#xM').checked) { const r = await run('saveItem', {item:{brand:l.brand, category:l.category, pn:l.pn, desc:l.desc, serial:l.serial, lot:l.lot, expiry:l.expiry, uom:l.uom, packSize:l.packSize, location:l.location, storage:'', sysQty:0, unitPrice:'', notes:'Found during count', section:'Active', flags:'Added from a count - please check details', active:''}}); delete r._n; ST.items.push(r); }
       closeModal(); ST.S.session.lineCount++; tabEncode(); toast('Line added');
     } catch (e) {}
   };
@@ -1207,9 +1220,9 @@ function itemModal(it) {
   $('#fOK').onclick = async () => {
     const o = Object.assign({}, it); o.motherId = $('#f_mid').value; ['brand','category','pn','uom','desc','serial','lot','expiry','location','storage','looseUom','packSize','sysQty','unitPrice','section','active','flags'].forEach(k => { o[k] = $('#f_' + k).value.trim(); }); o.brand = o.brand.toUpperCase();
     if (kids.size && o.motherId) return toast('This item cannot be both a mother and a baby. Clear one of them.', true);
-    try { const r = await run('saveItem', {item:o}); const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; else ST.items.push(r);
-      for (const id of new Set([...kids, ...was])) { if (kids.has(id) === was.has(id)) continue; const b = ST.items.find(x => x.id === id); if (!b) continue; const nb = Object.assign({}, b, {motherId:kids.has(id) ? r.id : ''}); const rb = await run('saveItem', {item:nb}); ST.items[ST.items.findIndex(x => x.id === id)] = rb; }
-      closeModal(); renderItems(); toast('Item saved'); } catch (e) {}
+    try { const r = await run('saveItem', {item:o}); const nUp = r._n || 0; delete r._n; const i = ST.items.findIndex(x => x.id === r.id); if (i >= 0) ST.items[i] = r; else ST.items.push(r);
+      for (const id of new Set([...kids, ...was])) { if (kids.has(id) === was.has(id)) continue; const b = ST.items.find(x => x.id === id); if (!b) continue; const nb = Object.assign({}, b, {motherId:kids.has(id) ? r.id : ''}); const rb = await run('saveItem', {item:nb}); delete rb._n; ST.items[ST.items.findIndex(x => x.id === id)] = rb; }
+      closeModal(); renderItems(); toast('Item saved' + (nUp ? ' · ' + nUp + ' line(s) in open count sessions updated' : '')); } catch (e) {}
   };
 }
 function parseCSV(t) {
