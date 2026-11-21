@@ -306,6 +306,20 @@ function route(db, req) {
       db.upsert('Sessions', 'id', [s2]);
       return sessionOut(s2);
     }
+    case 'mergeLines': {
+      need(u, ['encoder']);
+      var sm = findSession(db, d.id);
+      if (EDITABLE.indexOf(sm.status) < 0) throw new Error('Session is locked (' + sm.status + ')');
+      var allm = db.lines(d.id), byId = {}; allm.forEach(function (l) { byId[l.lineId] = l; });
+      var rmSet = {}; (d.remove || []).forEach(function (id) { if (byId[id]) rmSet[id] = 1; });
+      (d.updates || []).forEach(function (up) { var t = byId[up.lineId]; if (!t || rmSet[up.lineId]) return; ['cF', 'cL', 'kF', 'kL', 'sysQty'].forEach(function (k) { if (up[k] !== undefined) t[k] = numOrBlank(up[k]); }); });
+      var keepm = allm.filter(function (l) { return !rmSet[l.lineId]; });
+      db.createLines(d.id, keepm);
+      if (d.itemOff || d.itemQty) { var offS = {}; (d.itemOff || []).forEach(function (x) { offS[x] = 1; }); var its = db.all('Items').filter(function (i) { return offS[i.id] || (d.itemQty && d.itemQty[i.id] !== undefined); }); its.forEach(function (i) { if (offS[i.id]) i.active = 'N'; else i.sysQty = numOrBlank(d.itemQty[i.id]); }); if (its.length) db.upsert('Items', 'id', its); }
+      sm.lineCount = keepm.length; db.upsert('Sessions', 'id', [sm]);
+      log(db, u, 'mergeLines', d.id + ' removed ' + Object.keys(rmSet).length);
+      return {session:sessionOut(sm), lines:db.lines(d.id), sigs:db.all('Signatures').filter(function (x) { return String(x.sessionId) === String(d.id); })};
+    }
     case 'saveLines': {
       need(u, ['encoder', 'logistics']);
       var s3 = findSession(db, d.id), isPre = s3.kind === 'pre';
@@ -800,7 +814,7 @@ function tabEncode() {
   $('#tab').innerHTML = `<div class="row" style="margin-bottom:10px"><select id="eb">${bs.map(b => { const p = prog(b); return `<option value="${esc(b)}" ${b === S.brand ? 'selected' : ''}>${esc(b)} — ${p[0]}/${p[1]} encoded</option>`; }).join('')}</select><input id="eBy" placeholder="Encoded by — full name" title="Full name of the tabulator who encoded this brand" value="${esc((s.assign[S.brand] || {}).e || '')}" style="width:210px" ${ed ? '' : 'disabled'}>
   <input id="eq" placeholder="Search PN, description, serial, lot…" value="${esc(S.q)}" style="width:260px">
   <div class="pills" id="ef">${[['all','All'],['todo','Not encoded'],['diff','Differences']].map(f => `<button data-f="${f[0]}" class="${S.f === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div>
-  <span class="sp"></span>${ed && ST.S.lines.some(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)) ? '<button id="syncX" title="Add the lines found during the count to Items and link them">Add ' + ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)).length + ' extra line(s) to Items</button>' : ''}${ed ? '<button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
+  <span class="sp"></span>${ed && ST.S.lines.some(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)) ? '<button id="syncX" title="Add the lines found during the count to Items and link them">Add ' + ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)).length + ' extra line(s) to Items</button>' : ''}${ed ? '<button id="dupB" title="Remove empty duplicate lines and merge their counts">Merge duplicates</button><button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
   ${ed ? '<p class="mut small" style="margin:0 0 8px">Type each person’s count from their own paper sheet. Enter <b>0</b> for items counted as zero — blank means “not encoded”. Press Enter to move down. <b>Loose</b> needs a pack size (set it in Items).</p>' : ''}
   <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>Condition</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
   $('#eb').onchange = e => { S.brand = e.target.value; $('#eBy').value = (S.session.assign[S.brand] || {}).e || ''; fillEncode(); };
@@ -809,6 +823,7 @@ function tabEncode() {
   document.querySelectorAll('#ef button').forEach(b => b.onclick = () => { S.f = b.dataset.f; document.querySelectorAll('#ef button').forEach(x => x.classList.toggle('on', x === b)); fillEncode(); });
   if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
   if ($('#addX')) $('#addX').onclick = addExtraModal;
+  if ($('#dupB')) $('#dupB').onclick = dupModal;
   if ($('#syncX')) $('#syncX').onclick = async () => { const L = ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)); if (!confirm('Add ' + L.length + ' line(s) found during the count to Items and link them?')) return; let n = 0; try { for (const l of L) { await ensureItem(l); n++; } toast(n + ' line(s) added to Items and linked'); tabEncode(); } catch (e) { toast(n + ' added, then stopped - try again', true); } };
   fillEncode();
 }
@@ -1045,6 +1060,45 @@ function tabReport() {
     $('#rtX').onclick = closeModal;
     $('#rtOK').onclick = async () => { try { const r = await run('setStatus', {id:s.id, status:'Review', note:$('#rtN').value}); closeModal(); ST.S.session = r; ST.sessions[ST.sessions.findIndex(x => x.id === r.id)] = r; const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderSession(); toast('Returned to encoder'); } catch (e) {} };
   };
+}
+function dupPlan(brands, itemsToo) {
+  const L = ST.S.lines, isMom = new Set(L.filter(x => x.motherId).map(x => x.motherId)), plan = {del:[], merged:[], upd:{}, itemsToo};
+  const blank = l => !String(l.serial || '').trim() && !String(l.lot || '').trim() && !String(l.expiry || '').trim() && String(l.remarks || '').indexOf('LOTS: ') !== 0 && !condGet(l.remarks).cond && !l.changeReason;
+  const g = {};
+  L.filter(l => brands.includes(l.brand) && !isBaby(l) && !isMom.has(l.lineId) && String(l.pn || '').trim()).forEach(l => { const k = l.brand + '||' + String(l.pn).trim().toUpperCase(); (g[k] = g[k] || []).push(l); });
+  Object.keys(g).forEach(k => {
+    const ls = g[k]; if (ls.length < 2) return;
+    const tgt = ls.find(l => !blank(l)) || ls[0], u = plan.upd[tgt.lineId] = {lineId:tgt.lineId};
+    ls.forEach(l => {
+      if (l === tgt || !blank(l)) return;
+      const cnt = ['cF', 'cL', 'kF', 'kL'].filter(f => Number(l[f]) > 0);
+      plan.del.push(l.lineId);
+      if (N(l.sysQty) > 0) u.sysQty = (N(u.sysQty !== undefined ? u.sysQty : tgt.sysQty) || 0) + N(l.sysQty);
+      if (cnt.length) { cnt.forEach(f => { u[f] = (N(u[f] !== undefined ? u[f] : tgt[f]) || 0) + Number(l[f]); }); plan.merged.push({from:l, to:tgt, f:cnt.map(f => ({cF:'Counter full', cL:'Counter loose', kF:'Checker full', kL:'Checker loose'}[f] + ' +' + l[f])).join(', ')}); }
+      else plan.empty = (plan.empty || []).concat([{from:l, to:tgt}]);
+    });
+  });
+  plan.upd = Object.values(plan.upd).filter(u => Object.keys(u).length > 1);
+  const byId = {}; L.forEach(l => byId[l.lineId] = l); plan.itemOff = []; plan.itemQty = {};
+  if (plan.itemsToo) { plan.del.forEach(id => { const it = byId[id] && byId[id].itemId; if (it) plan.itemOff.push(it); }); plan.upd.forEach(u => { const t = byId[u.lineId]; if (t && t.itemId && u.sysQty !== undefined) plan.itemQty[t.itemId] = u.sysQty; }); }
+  return plan;
+}
+function dupModal() {
+  const S = ST.S;
+  const draw = () => {
+    const all = $('#dpAll') ? $('#dpAll').checked : false, it = $('#dpIt') ? $('#dpIt').checked : true, brands = all ? brandsOf() : [S.brand], p = dupPlan(brands, false), em = p.empty || [];
+    const row = x => `<tr><td>${esc(x.from.pn)}</td><td>${esc(x.from.desc)}</td><td>${esc(x.to.serial || x.to.lot || '(no lot)')}</td>`;
+    modal(`<h2>Merge duplicate lines</h2><p class="mut small" style="margin-top:0">Same part number, repeated. A line with <b>no serial, lot or expiry</b> is removed when another line of the same PN exists. Its counts and system quantity are added to the line that has the details (or the first line).</p>
+      <label><input type="checkbox" id="dpAll" ${all ? 'checked' : ''}> All brands in this session (otherwise only ${esc(S.brand)})</label><br><label><input type="checkbox" id="dpIt" ${it ? 'checked' : ''}> Also switch off the same duplicates in Items, so new sessions do not bring them back</label>
+      <h3 style="margin-top:12px">${em.length} empty duplicate line(s) to delete (no count)</h3>
+      ${em.length ? `<div class="tw" style="max-height:20vh"><table class="t"><thead><tr><th>PN</th><th>Description</th><th>Kept line</th></tr></thead><tbody>${em.map(x => row(x) + '</tr>').join('')}</tbody></table></div>` : '<p class="mut small">None.</p>'}
+      <h3 style="margin-top:12px">${p.merged.length} duplicate line(s) with counts to merge</h3>
+      ${p.merged.length ? `<div class="tw" style="max-height:20vh"><table class="t"><thead><tr><th>PN</th><th>Description</th><th>Merged into</th><th>Counts added</th></tr></thead><tbody>${p.merged.map(x => row(x) + `<td>${esc(x.f)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="mut small">None.</p>'}
+      <div class="row" style="margin-top:12px"><span class="sp"></span><button id="dpX">Cancel</button><button id="dpGo" class="pri" ${p.del.length ? '' : 'disabled'}>Delete ${p.del.length} line(s) &amp; merge</button></div>`, true);
+    $('#dpX').onclick = closeModal; $('#dpAll').onchange = draw; $('#dpIt').onchange = draw;
+    $('#dpGo').onclick = async () => { try { await saveDirty(); const q = dupPlan($('#dpAll').checked ? brandsOf() : [S.brand], $('#dpIt').checked), r = await run('mergeLines', {id:S.session.id, remove:q.del, updates:q.upd, itemOff:q.itemOff, itemQty:q.itemQty}); if ($('#dpIt').checked) { const bs = await run('bootstrap', {}); ST.items = bs.items; } setSession(r, ST.S); closeModal(); renderTab(); toast(q.del.length + ' duplicate line(s) removed'); } catch (e) {} };
+  };
+  draw();
 }
 function condLines() { return ST.S.lines.filter(l => !isBaby(l) && condGet(l.remarks).cond); }
 function condTable(print) {
