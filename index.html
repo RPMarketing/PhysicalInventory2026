@@ -110,7 +110,7 @@ body.preview .sheet{background:#fff;width:1120px;max-width:none;margin:0 auto 18
   body.preview #printArea{position:static;overflow:visible;background:#fff;padding:0;font-size:9pt}
   body.preview .sheet{box-shadow:none;width:auto;margin:0;padding:0}
 }
-#et .dsc{display:none}#et.simple .dsc{display:block;font-size:12px;color:#445;white-space:normal;max-width:260px;line-height:1.25}#et.simple th:nth-child(2),#et.simple td:nth-child(2),#et.simple th:nth-child(4),#et.simple td:nth-child(4),#et.simple th:nth-child(9),#et.simple td:nth-child(9){display:none}#et.simple td:nth-child(3) b{font-size:14px}#et select[data-cd]{width:118px!important}#et td{padding:3px 5px;vertical-align:middle}#et th{padding:4px 5px;white-space:nowrap}#et td:nth-child(3){white-space:nowrap}#et .lb{display:flex;gap:3px;margin-top:2px}#et .lb button{padding:1px 7px;font-size:11px;line-height:1.5}#et select[data-tx]{width:70px}#et input[data-tx]{width:100%;min-width:84px;padding:4px 6px;font-size:12.5px}#et input[data-tx=expiry]{min-width:112px}#et .pk input{width:44px!important;min-width:0!important;padding:2px 4px;text-align:center}#et .pk input[data-tx=looseUom]{width:74px!important}#et input[data-f]{width:62px;padding:5px;text-align:center}#et td:nth-child(5){white-space:nowrap}#et .ser,#et .lot{max-width:130px}
+#et .dsc{display:none}#et button[data-mid]{white-space:nowrap;border:0;background:none;color:#1f5fbf;padding:1px 0;min-height:0;font-size:11.5px;font-weight:600;text-decoration:underline dotted;text-underline-offset:3px}#et button[data-mid]:hover{background:none;color:#184f9f}#et td .lb:has(button[data-mid]){justify-content:center;margin-top:1px}#et.simple .dsc{display:block;font-size:12px;color:#445;white-space:normal;max-width:260px;line-height:1.25}#et.simple th:nth-child(2),#et.simple td:nth-child(2),#et.simple th:nth-child(4),#et.simple td:nth-child(4),#et.simple th:nth-child(9),#et.simple td:nth-child(9){display:none}#et.simple td:nth-child(3) b{font-size:14px}#et select[data-cd]{width:118px!important}#et td{padding:6px 5px 3px;vertical-align:top}#et td.num{text-align:center}#et td .lb{min-height:0}#et td:first-child{padding-top:11px}#et td.st{padding-top:15px}#et td:first-child{padding-top:15px}#et th{padding:4px 5px;white-space:nowrap}#et td:nth-child(3){white-space:nowrap}#et .lb{display:flex;gap:3px;margin-top:2px}#et .lb button{padding:1px 7px;font-size:11px;line-height:1.5}#et select[data-tx]{width:70px}#et input[data-tx]{width:100%;min-width:84px;padding:4px 6px;font-size:12.5px}#et input[data-tx=expiry]{min-width:112px}#et .pk input{width:44px!important;min-width:0!important;padding:2px 4px;text-align:center}#et .pk input[data-tx=looseUom]{width:74px!important}#et input[data-f]{width:62px;padding:5px;text-align:center}#et td:nth-child(5){white-space:nowrap}#et .ser,#et .lot{max-width:130px}
 </style></head>
 <body>
 <div id="pvBar"><b id="pvT">Preview</b><span class="small" style="opacity:.8">Paper: A4 landscape (already set)</span><button id="pvPrint" class="pri">Print…</button><button id="pvSave">Save as file</button><button id="pvClose">Close preview</button></div>
@@ -922,8 +922,9 @@ async function persistLine(l, rerender) {
 }
 function midBtn(l, f, pk, ed) {
   const m = N(l.midSize) || 0; if (!pk || m <= 0) return '';
-  const v = N(l[f]) || 0, txt = v > 0 ? Math.floor(v / m) + ' ' + esc(l.midUom) + ' + ' + (Math.round((v % m) * 100) / 100) + ' ' + esc(l.looseUom || 'pc') : '';
-  return (txt ? '<div class="small mut" style="white-space:nowrap">' + txt + '</div>' : '') + (ed ? `<div class="lb"><button class="small" data-mid="${esc(l.lineId)}|${f}" title="Type packs and loose pieces; the app adds them up">${esc(l.midUom)} + ${esc(l.looseUom || 'pc')}</button></div>` : '');
+  const v = N(l[f]) || 0, pk2 = Math.floor(v / m), rk = Math.round((v % m) * 100) / 100, txt = v > 0 ? [pk2 ? pk2 + ' ' + esc(l.midUom) : '', rk ? rk + ' ' + esc(l.looseUom || 'pc') : ''].filter(Boolean).join('<br>') : '';
+  if (!ed) return txt ? '<div class="small mut" style="white-space:nowrap">' + txt + '</div>' : '';
+  return `<div class="lb"><button class="small" data-mid="${esc(l.lineId)}|${f}" title="Type packs and loose pieces; the app adds them up" style="text-align:center;line-height:1.3">${txt || esc(l.midUom) + ' + ' + esc(l.looseUom || 'pc')}</button></div>`;
 }
 function midModal(id, f) {
   const l = ST.S.map[id]; if (!l) return; const m = N(l.midSize) || 1, v = N(l[f]) || 0;
@@ -954,9 +955,17 @@ function looseModal(id) {
   $('#lmOK').onclick = async () => { const p = $('#lmP').value.trim(); if (p && !(Number(p) > 0)) return toast('Enter a number greater than 0', true); l.uom = $('#lmU').value.trim(); l.looseUom = $('#lmL').value.trim(); l.packSize = p === '' ? '' : Number(p); const ms = $('#lmMS').value.trim(); if (ms && !(Number(ms) > 0)) return toast('Middle unit size must be a number greater than 0', true); l.midUom = $('#lmM').value.trim(); l.midSize = ms === '' || !l.midUom ? '' : Number(ms); markDirty(l.lineId); closeModal(); try { await persistLine(l, true); } catch (e) {} };
 }
 document.addEventListener('click', e => { const t = e.target.closest && e.target.closest('button[data-lsetup]'); if (t && ST.S) looseModal(t.dataset.lsetup); });
+function parsePack(txt) {
+  const sg = w => { w = w.trim().toLowerCase(); return w.length > 3 && /s$/.test(w) && !/ss$/.test(w) ? w.slice(0, -1) : w; };
+  const m = []; String(txt || '').replace(/(\d+(?:\.\d+)?)\s*([a-z][a-z.\-]*)\s*(?:\/|per)\s*([a-z][a-z.\-]*)/gi, (x, n, a, b) => { m.push({n:+n, small:sg(a), big:sg(b)}); return x; });
+  if (!m.length) return null;
+  if (m.length >= 2 && m[1].small === m[0].big) return {uom:m[1].big, midUom:m[0].big, looseUom:m[0].small, midSize:m[0].n, packSize:m[0].n * m[1].n};
+  return {uom:m[0].big, looseUom:m[0].small, packSize:m[0].n, midUom:'', midSize:''};
+}
 document.addEventListener('change', async e => {
   const t = e.target, K = ['location', 'serial', 'lot', 'expiry', 'category', 'packSize', 'uom', 'looseUom']; if (!t.dataset || K.indexOf(t.dataset.tx) < 0 || !ST.S) return;
   const l = ST.S.map[t.dataset.l]; if (!l) return; l[t.dataset.tx] = t.value.trim(); markDirty(l.lineId);
+  if (t.dataset.tx === 'uom') { const pp = parsePack(t.value); if (pp) { Object.assign(l, pp); toast('Set: 1 ' + pp.uom + (pp.midSize ? ' = ' + (pp.packSize / pp.midSize) + ' ' + pp.midUom + ' = ' : ' = ') + pp.packSize + ' ' + pp.looseUom); } }
   try { await persistLine(l, ['packSize', 'uom', 'looseUom'].indexOf(t.dataset.tx) >= 0); } catch (er) {}
 });
 async function addLotOf(id) {
