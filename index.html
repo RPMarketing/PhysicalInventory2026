@@ -139,6 +139,11 @@ function preDone(db, sid) {
   db.all('Signatures').forEach(function (x) { if (String(x.sessionId) === String(sid) && x.role === 'logistics') m[String(x.brand || '*')] = true; });
   return m;
 }
+function mkLine(i, lineId, kind) {
+  return {lineId:lineId, itemId:i.id, brand:i.brand, category:i.category, pn:i.pn, desc:i.desc, serial:i.serial, lot:i.lot, expiry:i.expiry, uom:i.uom,
+                looseUom:i.looseUom || '', packSize:numOrBlank(i.packSize), location:i.location, storage:i.storage, section:i.section || 'Active', sysQty:numOrBlank(i.sysQty), unitPrice:numOrBlank(i.unitPrice),
+                isExtra:'', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:i.motherId || '', babyOk:'', orig:kind === 'pre' ? JSON.stringify({pn:i.pn || '', desc:i.desc || '', uom:i.uom || '', category:i.category || ''}) : '', changeReason:''};
+}
 function sessionOut(s) {
   return {id:s.id, name:s.name, date:s.date, status:s.status, brands:toJson(s.brands, []), includeExpired:s.includeExpired === true || s.includeExpired === 'TRUE' || s.includeExpired === 'true' || s.includeExpired === 'Y',
           kind:s.kind === 'pre' ? 'pre' : 'count', preId:s.preId || '', notes:s.notes || '', assign:toJson(s.assign, {}), createdBy:s.createdBy, createdAt:s.createdAt, returnNote:s.returnNote || '', lineCount:Number(s.lineCount) || 0};
@@ -248,11 +253,7 @@ function route(db, req) {
       if (!items.length) throw new Error('No items found for the selected brands');
       var kind = d.kind === 'pre' ? 'pre' : 'count';
       var sid = (kind === 'pre' ? 'P' : 'S') + db.now().slice(0, 10).replace(/-/g, '') + '-' + pad(Math.floor(Math.random() * 1000), 3);
-      var lines = items.map(function (i, n) {
-        return {lineId:sid + '-' + pad(n + 1, 5), itemId:i.id, brand:i.brand, category:i.category, pn:i.pn, desc:i.desc, serial:i.serial, lot:i.lot, expiry:i.expiry, uom:i.uom,
-                looseUom:i.looseUom || '', packSize:numOrBlank(i.packSize), location:i.location, storage:i.storage, section:i.section || 'Active', sysQty:numOrBlank(i.sysQty), unitPrice:numOrBlank(i.unitPrice),
-                isExtra:'', cF:'', cL:'', kF:'', kL:'', rF:'', rL:'', recountBy:'', reason:'', remarks:'', motherId:i.motherId || '', babyOk:'', orig:kind === 'pre' ? JSON.stringify({pn:i.pn || '', desc:i.desc || '', uom:i.uom || '', category:i.category || ''}) : '', changeReason:''};
-      });
+      var lines = items.map(function (i, n) { return mkLine(i, sid + '-' + pad(n + 1, 5), kind); });
       db.createLines(sid, lines);
       var srow = {id:sid, name:d.name, date:d.date || db.now().slice(0, 10), status:kind === 'pre' ? 'Open' : 'Draft', kind:kind, brands:JSON.stringify(brands), includeExpired:d.includeExpired ? 'Y' : '',
                   notes:d.notes || '', assign:'{}', createdBy:u.name, createdAt:db.now(), returnNote:'', lineCount:lines.length};
@@ -268,6 +269,31 @@ function route(db, req) {
       }
       return {session:sessionOut(s), lines:glines,
               sigs:db.all('Signatures').filter(function (x) { return String(x.sessionId) === String(d.id); })};
+    }
+    case 'sessionBrands': {
+      need(u, ['encoder']);
+      var sb = findSession(db, d.id);
+      if (EDITABLE.indexOf(sb.status) < 0) throw new Error('Session is locked (' + sb.status + ')');
+      var cur = toJson(sb.brands, []), all = db.lines(d.id), rem = (d.remove || []).filter(function (b) { return cur.indexOf(b) >= 0; }), add = (d.add || []).filter(function (b) { return cur.indexOf(b) < 0; });
+      if (cur.length - rem.length + add.length < 1) throw new Error('A session needs at least one brand');
+      if (rem.length && !d.force) {
+        var bad = [];
+        rem.forEach(function (b) { var n = all.filter(function (l) { return l.brand === b && ['cF','cL','kF','kL','rF','rL'].some(function (k) { return l[k] !== '' && l[k] != null; }); }).length; if (n) bad.push(b + ' (' + n + ' lines with counts)'); });
+        if (bad.length) throw new Error('COUNTS: ' + bad.join(', '));
+      }
+      var keep = all.filter(function (l) { return rem.indexOf(l.brand) < 0; }), mx = 0, incl = sb.includeExpired === true || sb.includeExpired === 'Y' || sb.includeExpired === 'TRUE' || sb.includeExpired === 'true';
+      all.forEach(function (l) { var m = /-(\d{5})$/.exec(String(l.lineId)); if (m) mx = Math.max(mx, +m[1]); });
+      var skind = sb.kind === 'pre' ? 'pre' : 'count', fresh = db.all('Items').filter(function (i) { return i.active !== 'N' && add.indexOf(i.brand) >= 0 && (i.section !== 'Expired' || incl); }).map(function (i) { return mkLine(i, d.id + '-' + pad(++mx, 5), skind); });
+      if (add.length && !fresh.length) throw new Error('No items found for the selected brand(s)');
+      if (rem.length) { db.createLines(d.id, keep.concat(fresh)); db.deleteWhere('Signatures', function (x) { return String(x.sessionId) === String(d.id) && rem.indexOf(String(x.brand || '')) >= 0; }); }
+      else if (fresh.length) db.upsertLines(d.id, fresh);
+      var asg = toJson(sb.assign, {}); rem.forEach(function (b) { delete asg[b]; });
+      sb.assign = JSON.stringify(asg);
+      sb.brands = JSON.stringify(cur.filter(function (b) { return rem.indexOf(b) < 0; }).concat(add));
+      sb.lineCount = keep.length + fresh.length;
+      db.upsert('Sessions', 'id', [sb]);
+      log(db, u, 'sessionBrands', d.id + ' +[' + add.join(', ') + '] -[' + rem.join(', ') + ']');
+      return {session:sessionOut(sb), lines:db.lines(d.id), sigs:db.all('Signatures').filter(function (x) { return String(x.sessionId) === String(d.id); })};
     }
     case 'saveMeta': {
       need(u, ['encoder']);
@@ -718,7 +744,11 @@ function renderTab() { ({print:tabPrint, encode:tabEncode, review:tabReview, rep
 function tabPrint() {
   const S = ST.S, s = S.session, bs = brandsOf(), ed = canEdit();
   const cnt = b => { const ls = linesOfBrand(b); return [ls.filter(l => !isBaby(l) && l.section !== 'Expired').length, ls.filter(l => !isBaby(l) && l.section === 'Expired').length, ls.filter(isBaby).length]; };
-  $('#tab').innerHTML = `<div class="card"><h3>Who counts which brand</h3><p class="mut small" style="margin-top:0">Counters and checkers work on paper only. Names entered here are printed on their sheets.</p>
+  const inS = [...new Set(s.brands || [])], allB = [...new Set((ST.items || []).map(i => i.brand).filter(Boolean))].sort().filter(b => inS.indexOf(b) < 0), nOf = b => ST.S.lines.filter(l => l.brand === b).length;
+  $('#tab').innerHTML = `<div class="card"><h3>Brands in this session</h3><p class="mut small" style="margin:0 0 8px">${ed ? 'Add a brand that was left out, or remove one that is not being counted. Counts you already typed stay safe - you are asked before anything with counts is removed.' : 'The session is locked.'}</p>
+  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${inS.map(b => `<span class="badge" style="font-size:13px;padding:4px 8px"><b>${esc(b)}</b> <span class="mut">${nOf(b)}</span> ${ed ? `<button type="button" class="small" data-rb="${esc(b)}" title="Remove this brand from the session" style="padding:0 6px;margin-left:4px">✕</button>` : ''}</span>`).join('')}</div>
+  ${ed ? `<div class="row"><select id="abSel"><option value="">+ Add a brand...</option>${allB.map(b => `<option>${esc(b)}</option>`).join('')}</select><button type="button" id="abGo" class="primary">Add brand</button></div>` : ''}</div>
+  <div class="card"><h3>Who counts which brand</h3><p class="mut small" style="margin-top:0">Counters and checkers work on paper only. Names entered here are printed on their sheets.</p>
   <div class="tw"><table class="t"><thead><tr><th>Brand</th><th class="num">PN lines to count</th><th>Counter</th><th>Checker</th><th>Encoder (tabulator)</th><th></th></tr></thead><tbody>
   ${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td><input data-b="${esc(b)}" data-r="c" value="${esc(a.c || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="k" value="${esc(a.k || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="e" placeholder="full name" value="${esc(a.e || '')}" ${ed ? '' : 'disabled'}></td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
   </tbody></table></div>
@@ -746,6 +776,13 @@ function tabPrint() {
   };
   const pb = () => $('#pb').value;
   if ($('#rfL')) $('#rfL').onclick = refreshLinks;
+  const brandCall = async (data, quiet) => { await saveDirty(); const r = await run('sessionBrands', Object.assign({id:s.id}, data), quiet); setSession(r, ST.S); renderTab(); return r; };
+  if ($('#abGo')) $('#abGo').onclick = async () => { const b = $('#abSel').value; if (!b) return toast('Pick a brand first', true); try { await brandCall({add:[b]}); toast(b + ' added'); } catch (e) {} };
+  document.querySelectorAll('button[data-rb]').forEach(btn => btn.onclick = async () => {
+    const b = btn.dataset.rb, n = nOf(b); if (!confirm('Remove ' + b + ' (' + n + ' lines) from this session?')) return;
+    try { await brandCall({remove:[b]}, true); toast(b + ' removed'); }
+    catch (e) { if (String(e.message || e).indexOf('COUNTS:') < 0) return toast(String(e.message || e), true); if (!confirm(String(e.message || e).replace('COUNTS: ', '') + '\n\nThese counts will be DELETED. Remove anyway?')) return; try { await brandCall({remove:[b], force:true}); toast(b + ' removed'); } catch (e2) {} }
+  });
   if ($('#prSel')) $('#prSel').onchange = async e => { try { const r = await run('saveMeta', {id:s.id, preId:e.target.value}); S.session = r; await loadPre(); toast(e.target.value ? 'Pre-count linked — see the Compare tab' : 'Pre-count unlinked'); } catch (x) {} };
   $('#pBl').onclick = () => printSheets({kind:'blank', brand:pb()});
   $('#pPre').onclick = () => printSheets({kind:'pre', brand:pb()});
