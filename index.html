@@ -219,6 +219,7 @@ function route(db, req) {
       need(u, ['encoder']);
       var rows = (d.items || []).map(function (r) { r.sysQty = numOrBlank(r.sysQty); r.unitPrice = numOrBlank(r.unitPrice); r.packSize = numOrBlank(r.packSize); return r; });
       if (d.mode === 'replace' && d.first) db.replace('Items', []);
+      if (d.mode === 'brand' && d.first) { var bset = (d.brands || []).map(function (b) { return String(b).toUpperCase(); }); db.replace('Items', db.all('Items').filter(function (i) { return bset.indexOf(String(i.brand).toUpperCase()) < 0; })); }
       db.append('Items', rows);
       log(db, u, 'importItems', (d.mode || 'append') + ' +' + rows.length);
       return {added:rows.length};
@@ -1333,7 +1334,7 @@ function parseCSV(t) {
   if (f !== '' || row.length) { row.push(f); rows.push(row); } return rows;
 }
 function importModal() {
-  modal(`<h2>Import items from CSV</h2><p class="mut small">Use the cleaned <b>items.csv</b>. Columns: ${ITEM_FIELDS.join(', ')}.</p><input type="file" id="cf" accept=".csv,text/csv"><div style="margin:10px 0"><label><input type="radio" name="im" value="replace" checked> Replace the whole item master</label><br><label><input type="radio" name="im" value="append"> Add to existing items</label></div><div id="cp" class="small mut"></div>
+  modal(`<h2>Import items from CSV</h2><p class="mut small">Use the cleaned <b>items.csv</b>. Columns: ${ITEM_FIELDS.join(', ')}.</p><input type="file" id="cf" accept=".csv,text/csv"><div style="margin:10px 0"><label><input type="radio" name="im" value="brand" checked> Replace only the brands in this file (all other brands stay)</label><br><label><input type="radio" name="im" value="replace"> Replace the whole item master</label><br><label><input type="radio" name="im" value="append"> Add to existing items</label></div><div id="cp" class="small mut"></div>
   <div class="row" style="margin-top:12px"><span class="sp"></span><button id="cX">Close</button><button class="pri" id="cOK" disabled>Import</button></div>`);
   let items = [];
   $('#cX').onclick = closeModal;
@@ -1346,9 +1347,11 @@ function importModal() {
   };
   $('#cOK').onclick = async () => {
     const mode = document.querySelector('input[name=im]:checked').value;
+    const brs = [...new Set(items.map(x => x.brand).filter(Boolean))];
+    if (mode === 'brand' && !confirm('Replace the items of ' + brs.join(', ') + ' (' + items.length + ' new items)? Items of other brands are not touched. Existing count sessions keep their own copy.')) return;
     if (mode === 'replace' && !confirm('Replace the entire item master? Existing count sessions keep their own copy and are not affected.')) return;
     $('#cOK').disabled = true;
-    try { for (let i = 0; i < items.length; i += 400) { $('#cp').textContent = `Importing ${Math.min(i + 400, items.length)} / ${items.length}…`; await run('importItems', {mode, first:i === 0, items:items.slice(i, i + 400)}); }
+    try { for (let i = 0; i < items.length; i += 400) { $('#cp').textContent = `Importing ${Math.min(i + 400, items.length)} / ${items.length}…`; await run('importItems', {mode, first:i === 0, brands:brs, items:items.slice(i, i + 400)}); }
       const b = await run('bootstrap', {}); ST.items = b.items; closeModal(); renderItems(); toast(`Imported ${items.length} items`); } catch (e) { $('#cOK').disabled = false; }
   };
 }
