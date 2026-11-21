@@ -768,7 +768,7 @@ function tabPrint() {
   ${ed ? `<div class="row"><select id="abSel"><option value="">+ Add a brand...</option>${allB.map(b => `<option>${esc(b)}</option>`).join('')}</select><button type="button" id="abGo" class="primary">Add brand</button></div>` : ''}</details>
   <div class="card"><h3>Who counts which brand</h3><p class="mut small" style="margin-top:0">Counters and checkers work on paper only. Names entered here are printed on their sheets.</p>
   <div class="tw"><table class="t"><thead><tr><th>Brand</th><th>Encoded</th><th class="num">PN lines to count</th><th>Counter</th><th>Checker</th><th>Encoder (tabulator)</th><th></th></tr></thead><tbody>
-  ${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td>${brandBadge(b)}</td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td><input data-b="${esc(b)}" data-r="c" value="${esc(a.c || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="k" value="${esc(a.k || '')}" ${ed ? '' : 'disabled'}></td><td><input data-b="${esc(b)}" data-r="e" placeholder="full name" value="${esc(a.e || '')}" ${ed ? '' : 'disabled'}></td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
+  ${(() => { RN = rosterNames(); return ''; })()}${bs.map(b => { const c = cnt(b), a = s.assign[b] || {}; return `<tr><td><b>${esc(b)}</b></td><td>${brandBadge(b)}</td><td class="num">${c[0]}${c[1] ? ' + ' + c[1] + ' expired' : ''}${c[2] ? ' <span class="mut small">(+' + c[2] + ' baby parts)</span>' : ''}</td><td>${nameSel(b, 'c', a.c || '', ed, RN)}</td><td>${nameSel(b, 'k', a.k || '', ed, RN)}</td><td>${nameSel(b, 'e', a.e || '', ed, RN)}</td><td><button data-pv="${esc(b)}">View PN list</button></td></tr>`; }).join('')}
   </tbody></table></div>
   <div style="margin-top:10px"><label class="small mut">Notes (cut-off / scope)</label><br><textarea id="mNotes" rows="2" style="width:100%" ${ed ? '' : 'disabled'}>${esc(s.notes)}</textarea></div>
   ${ed ? '<div class="row" style="margin-top:8px"><button id="saveMeta">Save names & notes</button></div>' : ''}</div>
@@ -786,10 +786,10 @@ function tabPrint() {
     $('#pvX').onclick = closeModal;
   });
   let asgBusy = Promise.resolve();
-  const asgSave = () => { asgBusy = asgBusy.then(async () => { const assign = JSON.parse(JSON.stringify(S.session.assign || {})); document.querySelectorAll('input[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value.trim(); }); try { const r = await run('saveMeta', {id:s.id, assign}); S.session = r; toast('Names saved'); } catch (e) {} }); };
-  document.querySelectorAll('input[data-b]').forEach(i => { i.onchange = asgSave; });
+  const asgSave = () => { asgBusy = asgBusy.then(async () => { const assign = JSON.parse(JSON.stringify(S.session.assign || {})); document.querySelectorAll('input[data-b],select[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value === '__new' ? '' : i.value.trim(); }); try { const r = await run('saveMeta', {id:s.id, assign}); S.session = r; toast('Names saved'); } catch (e) {} }); };
+  document.querySelectorAll('input[data-b],select[data-b]').forEach(i => { i.onchange = () => { if (i.value === '__new') { const nm = (prompt('Full name:') || '').trim(); if (!nm) { i.value = (S.session.assign[i.dataset.b] || {})[i.dataset.r] || ''; return; } document.querySelectorAll('select[data-b]').forEach(sx => { if (![...sx.options].some(o => o.value === nm || o.textContent === nm)) { const o = document.createElement('option'); o.textContent = nm; sx.insertBefore(o, sx.querySelector('option[value=__new]')); } }); i.value = nm; } asgSave(); }; });
   if ($('#saveMeta')) $('#saveMeta').onclick = async () => {
-    const assign = JSON.parse(JSON.stringify(s.assign || {})); document.querySelectorAll('input[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value.trim(); });
+    const assign = JSON.parse(JSON.stringify(s.assign || {})); document.querySelectorAll('input[data-b],select[data-b]').forEach(i => { const b = i.dataset.b; assign[b] = assign[b] || {}; assign[b][i.dataset.r] = i.value === '__new' ? '' : i.value.trim(); });
     try { const r = await run('saveMeta', {id:s.id, assign, notes:$('#mNotes').value}); S.session = r; toast('Saved'); } catch (e) {}
   };
   const pb = () => $('#pb').value;
@@ -894,7 +894,15 @@ document.addEventListener('change', e => {
 function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || '', lo:p[3] || '', cd:p[4] || ''}; }), rest}; }
 function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q || x.lo || x.cd); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].concat(x.lo || x.cd ? [x.lo || ''] : [], x.cd ? [x.cd] : []).join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
 function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || (x.lo ? '0' : '?')) + (x.lo ? ' +' + x.lo + ' loose' : '') + (x.cd ? ' [' + x.cd + ']' : '')).join(' · '); }
-let ENC_S = null, ENC_R = null;
+function rosterNames(extra) {
+  const set = new Set(); const add = v => { v = String(v || '').trim(); if (v) set.add(v); };
+  (ST.sessions || []).forEach(x => { let a = x.assign; if (typeof a === 'string') { try { a = JSON.parse(a); } catch (e) { a = {}; } } Object.values(a || {}).forEach(r => { add(r.c); add(r.k); add(r.e); }); });
+  if (ST.S && ST.S.session) Object.values(ST.S.session.assign || {}).forEach(r => { add(r.c); add(r.k); add(r.e); });
+  (ST.users || []).forEach(u => add(u.name)); (extra || []).forEach(add);
+  return [...set].sort((a, b) => a.localeCompare(b));
+}
+const nameSel = (b, r, val, ed, names) => '<select data-b="' + esc(b) + '" data-r="' + r + '" ' + (ed ? '' : 'disabled') + ' style="min-width:150px"><option value="">— select —</option>' + names.concat(val && !names.includes(val) ? [val] : []).map(n => '<option ' + (n === val ? 'selected' : '') + '>' + esc(n) + '</option>').join('') + (ed ? '<option value="__new">+ Add new name…</option>' : '') + '</select>';
+let RN = [], ENC_S = null, ENC_R = null;
 function encRowsView() { if (ENC_R === null) { try { ENC_R = localStorage.getItem('encRows') === '1'; } catch (e) { ENC_R = false; } } return ENC_R; }
 /* Rows view: the Lot / Serial list of a combined line shown as separate read-only rows under the line */
 function subRows(l) {
