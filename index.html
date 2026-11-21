@@ -802,7 +802,7 @@ function tabEncode() {
   <div class="pills" id="ef">${[['all','All'],['todo','Not encoded'],['diff','Differences']].map(f => `<button data-f="${f[0]}" class="${S.f === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div>
   <span class="sp"></span>${ed && ST.S.lines.some(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)) ? '<button id="syncX" title="Add the lines found during the count to Items and link them">Add ' + ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)).length + ' extra line(s) to Items</button>' : ''}${ed ? '<button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
   ${ed ? '<p class="mut small" style="margin:0 0 8px">Type each person’s count from their own paper sheet. Enter <b>0</b> for items counted as zero — blank means “not encoded”. Press Enter to move down. <b>Loose</b> needs a pack size (set it in Items).</p>' : ''}
-  <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
+  <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>Condition</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
   $('#eb').onchange = e => { S.brand = e.target.value; $('#eBy').value = (S.session.assign[S.brand] || {}).e || ''; fillEncode(); };
   $('#eBy').onchange = async e => { const b = S.brand, as = JSON.parse(JSON.stringify(S.session.assign || {})); as[b] = Object.assign({}, as[b], {e:e.target.value.trim()}); try { const r = await run('saveMeta', {id:S.session.id, assign:as}); S.session = r; toast('Encoder name saved for ' + b); } catch (x) {} };
   $('#eq').oninput = e => { S.q = e.target.value; fillEncode(); };
@@ -823,19 +823,19 @@ function encRows() {
 function fillEncode() {
   const ed = canEdit(), rows = encRows(); let h = '', prevSec = null, nn = 0;
   rows.forEach((l, i) => {
-    if (l.section !== prevSec) { if (l.section === 'Expired') h += '<tr><td colspan="14" style="background:#f6e0dd;font-weight:600">EXPIRED ITEMS</td></tr>'; prevSec = l.section; }
+    if (l.section !== prevSec) { if (l.section === 'Expired') h += '<tr><td colspan="15" style="background:#f6e0dd;font-weight:600">EXPIRED ITEMS</td></tr>'; prevSec = l.section; }
     if (isBaby(l)) {
       const m = motherOf(l), id = esc(l.lineId);
       h += `<tr data-r="${id}" style="background:#f6f7fb"><td class="mut">↳</td><td>${CAT_SHORT[l.category] || ''}</td><td>↳ ${esc(l.pn)}</td><td>${esc(l.desc)} <span class="badge">baby part of ${esc(m ? m.pn : '')} — do not count</span></td><td>${esc(l.uom)}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td><td>${esc(l.location)}</td>
-      <td colspan="4"><select data-l="${id}" data-t="babyOk" ${ed ? '' : 'disabled'}><option value="">— check part —</option><option value="Y" ${l.babyOk === 'Y' ? 'selected' : ''}>✓ PN / serial / lot / exp correct</option><option value="N" ${l.babyOk === 'N' ? 'selected' : ''}>⚠ Different</option><option value="M" ${l.babyOk === 'M' ? 'selected' : ''}>✕ Not present (0) — used / missing</option></select> <input data-l="${id}" data-t="remarks" placeholder="actual PN / serial / lot / expiry" value="${esc(l.remarks)}" style="width:220px" ${ed ? '' : 'disabled'}> ${ed ? `<button data-loose="${id}" class="small" title="Found loose, not attached: count it as a disassembled item">+ count as disassembled (loose)</button>` : ''}</td><td class="st">${stHtml(calc(l))}</td></tr>`;
+      <td colspan="4"><select data-l="${id}" data-t="babyOk" ${ed ? '' : 'disabled'}><option value="">— check part —</option><option value="Y" ${l.babyOk === 'Y' ? 'selected' : ''}>✓ PN / serial / lot / exp correct</option><option value="N" ${l.babyOk === 'N' ? 'selected' : ''}>⚠ Different</option><option value="M" ${l.babyOk === 'M' ? 'selected' : ''}>✕ Not present (0) — used / missing</option></select> <input data-l="${id}" data-t="remarks" placeholder="actual PN / serial / lot / expiry" value="${esc(remShow(l))}" style="width:220px" ${ed ? '' : 'disabled'}> ${ed ? `<button data-loose="${id}" class="small" title="Found loose, not attached: count it as a disassembled item">+ count as disassembled (loose)</button>` : ''}</td><td></td><td class="st">${stHtml(calc(l))}</td></tr>`;
       return;
     }
     nn++;
     const id0 = esc(l.lineId), pk = N(l.packSize) > 0, inp = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${esc(l.lineId)}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
     h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${ed ? `<select data-l="${id0}" data-tx="category" style="width:68px;padding:3px 2px;font-size:12px"><option value=""></option>${CATS.map(c => `<option value="${c}" ${l.category === c ? 'selected' : ''}>${CAT_SHORT[c] || c}</option>`).join('')}</select>` : (CAT_SHORT[l.category] || '')}</td><td>${esc(l.pn)}${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}${lotsText(l) ? `<div class="mut" style="font-size:11px;white-space:normal;max-width:200px">${esc(lotsText(l))}</div>` : ''}${ed ? `<div class="lb"><button class="small" data-lots="${id0}" title="List the lot / serial numbers and quantities of this PN">${lotsText(l) ? '✎ Lot / Serial' : 'Lot / Serial'}</button><button class="small" data-lot="${id0}" title="Add another row for a different serial / lot / expiry">+ Row</button></div>` : ''}</td><td>${esc(l.desc)}</td><td>${ed ? `<input data-l="${id0}" data-tx="uom" list="uomList" placeholder="unit" value="${esc(l.uom)}" style="width:84px"><div class="lb"><button class="small" data-lsetup="${id0}" title="Set the loose unit and how many loose pieces make one full unit">${pk ? '✎ ' + esc(l.packSize) + ' ' + esc(l.looseUom || 'pc') + ' / ' + esc(l.uom || 'unit') : '+ Loose'}</button></div>` : esc(l.uom) + (pk ? `<div class="small mut">${esc(l.packSize)} ${esc(l.looseUom || 'pc')} per ${esc(l.uom || 'unit')}</div>` : '')}${!pk && N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : ''}</td>${ed ? `<td class="ser"><input data-l="${id0}" data-tx="serial" value="${esc(l.serial)}" style="width:100px"></td><td class="lot"><input data-l="${id0}" data-tx="lot" value="${esc(l.lot)}" style="width:100px"></td><td><input type="date" data-l="${id0}" data-tx="expiry" value="${esc(l.expiry)}"></td>` : `<td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td>`}<td>${ed ? `<input data-l="${id0}" data-tx="location" value="${esc(l.location)}" style="width:110px" title="Edit here - it also updates Items">` : esc(l.location)}</td>
-    <td class="num">${inp('cF')}</td><td class="num">${inp('cL', !pk)}</td><td class="num">${inp('kF')}</td><td class="num">${inp('kL', !pk)}</td><td class="st">${stHtml(calc(l))}</td></tr>`;
+    <td class="num">${inp('cF')}</td><td class="num">${inp('cL', !pk)}</td><td class="num">${inp('kF')}</td><td class="num">${inp('kL', !pk)}</td>${condCell(l, ed)}<td class="st">${stHtml(calc(l))}</td></tr>`;
   });
-  $('#eBody').innerHTML = h || '<tr><td colspan="14" class="mut" style="padding:20px">No lines.</td></tr>';
+  $('#eBody').innerHTML = h || '<tr><td colspan="15" class="mut" style="padding:20px">No lines.</td></tr>';
 }
 document.addEventListener('input', e => {
   const t = e.target; if (!t.dataset || !t.dataset.l || !t.dataset.f || !ST.S) return;
@@ -848,7 +848,22 @@ document.addEventListener('input', e => {
   const t = e.target; if (!t.dataset || !t.dataset.tx || !ST.S) return;
   const l = ST.S.map[t.dataset.l]; if (!l) return; l[t.dataset.tx] = t.value; markDirty(l.lineId);
 });
-function lotsGet(r) { r = String(r || ''); if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || ''}; }), rest}; }
+const CONDS = ['Expired - no longer sellable', 'Expired - sellable', 'Damaged', 'Defective', 'Other (specify)'];
+function condGet(r) { r = String(r || ''); const m = r.match(/^\[\[(.*?)\]\] ?/); return m ? {cond:m[1], rest:r.slice(m[0].length)} : {cond:'', rest:r}; }
+function remShow(l) { const g = condGet(l.remarks); return g.cond ? g.cond + (g.rest ? ' — ' + g.rest : '') : g.rest; }
+function condSet(r, cond) { return (cond ? '[[' + cond + ']] ' : '') + r; }
+function condCell(l, ed) {
+  const c = condGet(l.remarks).cond, oth = c.indexOf('Other') === 0, base = oth ? 'Other (specify)' : c, note = oth ? c.replace(/^Other:? ?/, '') : '', id = esc(l.lineId);
+  if (!ed) return '<td>' + esc(c) + '</td>';
+  return `<td style="white-space:nowrap"><select data-l="${id}" data-cd="sel" style="width:150px;${c ? 'background:#fff1dc;' : ''}"><option value="">—</option>${CONDS.map(o => `<option ${base === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${oth ? `<input data-l="${id}" data-cd="note" placeholder="specify…" value="${esc(note)}" style="width:150px;margin-left:3px">` : ''}</td>`;
+}
+document.addEventListener('change', e => {
+  const t = e.target; if (!t.dataset || !t.dataset.cd || !ST.S) return;
+  const l = ST.S.map[t.dataset.l]; if (!l) return; const r = condGet(l.remarks).rest;
+  if (t.dataset.cd === 'sel') { l.remarks = condSet(r, t.value === 'Other (specify)' ? 'Other: ' : t.value); markDirty(l.lineId); const td = t.closest('td'); td.outerHTML = condCell(l, true); const nt = document.querySelector(`input[data-cd=note][data-l="${CSS.escape(l.lineId)}"]`); if (nt) nt.focus(); }
+  else { l.remarks = condSet(r, 'Other: ' + t.value.trim()); markDirty(l.lineId); }
+});
+function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || ''}; }), rest}; }
 function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
 function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || '?')).join(' · '); }
 function lotsModal(id) {
@@ -863,7 +878,7 @@ function lotsModal(id) {
     document.querySelectorAll('#modal button[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); paint(); });
     $('#lotAdd').onclick = () => { rows.push({lot:'', exp:'', q:''}); paint(); };
     $('#lotX').onclick = closeModal;
-    $('#lotOK').onclick = async () => { l.remarks = lotsSet(rows, g.rest); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0); if (sm > 0) { if ($('#lotC').checked) l.cF = fq(sm); if ($('#lotK').checked) l.kF = fq(sm); } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lot / serial list saved'); } catch (e) {} };
+    $('#lotOK').onclick = async () => { l.remarks = condSet(lotsSet(rows, g.rest), condGet(l.remarks).cond); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0); if (sm > 0) { if ($('#lotC').checked) l.cF = fq(sm); if ($('#lotK').checked) l.kF = fq(sm); } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lot / serial list saved'); } catch (e) {} };
   }; paint();
 }
 async function ensureItem(l) {
@@ -981,7 +996,7 @@ function fillReview() {
   const all = reviewLines().length; if (all > 600) $('#rBody').insertAdjacentHTML('beforeend', `<tr><td colspan="16" class="mut">Showing first 600 of ${all} lines. Filter by brand to see the rest.</td></tr>`);
 }
 function reviewRow(l, ed) {
-  if (isBaby(l)) { const m = motherOf(l), c = calc(l); return `<tr data-r="${esc(l.lineId)}" style="background:#f6f7fb"><td>${esc(l.brand)}</td><td>↳ ${esc(l.pn)}</td><td>${esc(l.desc)} <span class="badge">baby of ${esc(m ? m.pn : '')}</span></td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td colspan="9">${stHtml(c)}${l.remarks ? ' — actual: ' + esc(l.remarks) : ''}</td><td colspan="2"></td></tr>`; }
+  if (isBaby(l)) { const m = motherOf(l), c = calc(l); return `<tr data-r="${esc(l.lineId)}" style="background:#f6f7fb"><td>${esc(l.brand)}</td><td>↳ ${esc(l.pn)}</td><td>${esc(l.desc)} <span class="badge">baby of ${esc(m ? m.pn : '')}</span></td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td colspan="9">${stHtml(c)}${l.remarks ? ' — actual: ' + esc(remShow(l)) : ''}</td><td colspan="2"></td></tr>`; }
   const c = calc(l), pk = N(l.packSize) > 0, id = esc(l.lineId), needRe = c.st === 'mismatch' || c.st === 'recounted';
   const q = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${id}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
   const cnt = (F, Lo) => N(F) == null ? '—' : fq(tot(F, Lo, N(l.packSize) || 0));
@@ -989,7 +1004,7 @@ function reviewRow(l, ed) {
   return `<tr data-r="${id}"><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}${l.section === 'Expired' ? ' <span class="badge b-bad">expired</span>' : ''}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td>${ST.S.pre ? (pt => `<td class="num" title="Logistics pre-count">${pt == null ? '<span class="mut">—</span>' : (c.total != null && Math.abs(pt - c.total) > 1e-9 ? `<b class="neg">${fq(pt)} ≠</b>` : fq(pt))}</td>`)(preTot(l)) : ''}<td class="num">${cnt(l.cF, l.cL)}</td><td class="num">${cnt(l.kF, l.kL)}</td>
   <td class="num">${needRe ? q('rF') : ''}</td><td class="num">${needRe ? q('rL', !pk) : ''}</td><td>${needRe ? `<input data-l="${id}" data-t="recountBy" value="${esc(l.recountBy)}" style="width:110px" ${ed ? '' : 'disabled'}>` : ''}</td>
   <td class="num c-final">${c.total != null ? fq(c.total) : '<span class="st-x">pending</span>'}</td><td class="num c-var ${hasVar ? (c.v < 0 ? 'neg' : 'pos') : ''}">${c.v != null ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td class="num c-val ${hasVar ? (c.val < 0 ? 'neg' : 'pos') : ''}">${hasVar && N(l.unitPrice) ? peso(c.val) : ''}</td>
-  <td class="c-reason">${hasVar ? `<select data-l="${id}" data-t="reason" ${ed ? '' : 'disabled'}><option value="">— reason —</option>${REASONS.map(r => `<option ${l.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : ''}</td><td><input data-l="${id}" data-t="remarks" value="${esc(l.remarks)}" style="width:150px" ${ed ? '' : 'disabled'}></td></tr>`;
+  <td class="c-reason">${hasVar ? `<select data-l="${id}" data-t="reason" ${ed ? '' : 'disabled'}><option value="">— reason —</option>${REASONS.map(r => `<option ${l.reason === r ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select>` : ''}</td><td><input data-l="${id}" data-t="remarks" value="${esc(remShow(l))}" style="width:150px" ${ed ? '' : 'disabled'}></td></tr>`;
 }
 function refreshReviewRow(id) {
   const tr = document.querySelector(`tr[data-r="${CSS.escape(id)}"]`); if (!tr || !tr.querySelector('.c-final')) return;
@@ -1018,9 +1033,9 @@ function tabReport() {
   ${isEnc() && s.status === 'Verification' ? '<span class="mut small">Waiting for verifier’s signature</span>' : ''}</div>
   <div class="row" style="align-items:stretch">${sigBox('verifier', 'Verified by')}${sigBox('approver', 'Approved by')}</div>
   ${soCard()}
-  ${babyTable()}
+  ${babyTable()}${condTable(false)}
   <h3>Variances (${vl.length})</h3><div class="tw" style="max-height:56vh"><table class="t"><thead><tr><th>Brand</th><th>PN</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th class="num">System</th><th class="num">Counted</th><th class="num">Variance</th><th class="num">Value</th><th>Reason</th><th>Remarks</th></tr></thead><tbody>
-  ${vl.slice(0, 800).map(l => { const c = calc(l); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${fq(c.total)}</td><td class="num ${c.v < 0 ? 'neg' : 'pos'}">${c.v > 0 ? '+' : ''}${fq(c.v)}</td><td class="num">${N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)}</td><td>${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="11" class="mut" style="padding:16px">No variances.</td></tr>'}</tbody></table></div>`;
+  ${vl.slice(0, 800).map(l => { const c = calc(l); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td class="num">${fq(c.sys)}</td><td class="num">${fq(c.total)}</td><td class="num ${c.v < 0 ? 'neg' : 'pos'}">${c.v > 0 ? '+' : ''}${fq(c.v)}</td><td class="num">${N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)}</td><td>${esc(remShow(l))}</td></tr>`; }).join('') || '<tr><td colspan="11" class="mut" style="padding:16px">No variances.</td></tr>'}</tbody></table></div>`;
   $('#rpF').onclick = () => printReport(false); $('#rpA').onclick = () => printReport(true);
   if ($('#rpC')) $('#rpC').onclick = () => printSheets({kind:'confirm', copy:'Both', brand:''});
   if ($('#sgn')) $('#sgn').onclick = () => signModal();
@@ -1031,10 +1046,18 @@ function tabReport() {
     $('#rtOK').onclick = async () => { try { const r = await run('setStatus', {id:s.id, status:'Review', note:$('#rtN').value}); closeModal(); ST.S.session = r; ST.sessions[ST.sessions.findIndex(x => x.id === r.id)] = r; const g = await run('getSession', {id:s.id}); setSession(g, ST.S); renderSession(); toast('Returned to encoder'); } catch (e) {} };
   };
 }
+function condLines() { return ST.S.lines.filter(l => !isBaby(l) && condGet(l.remarks).cond); }
+function condTable(print) {
+  const c = condLines(); if (!c.length) return '';
+  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot].filter(Boolean).join(' / '))}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}</td><td><b>${esc(condGet(l.remarks).cond)}</b></td></tr>`;
+  const head = '<tr><th>Brand</th><th>PN</th><th>Description</th><th>Serial / lot</th><th>Expiry</th><th>Location</th><th>Condition</th></tr>';
+  return print ? `<p style="margin-top:10px"><b>Items with condition remarks (${c.length})</b></p><table><thead>${head}</thead><tbody>${c.map(row).join('')}</tbody></table>`
+    : `<h3>Items with condition remarks (${c.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead>${head}</thead><tbody>${c.map(row).join('')}</tbody></table></div>`;
+}
 function babyIssues() { return ST.S.lines.filter(l => isBaby(l) && (l.babyOk === 'N' || l.babyOk === 'M')); }
 function babyTable() {
   const b = babyIssues(); if (!b.length) return '';
-  return `<h3>Baby part discrepancies (${b.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th class="ser">System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${b.map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table></div>`;
+  return `<h3>Baby part discrepancies (${b.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th class="ser">System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${b.map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${esc(remShow(l))}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 function soCard() {
   const S = ST.S, s = S.session, ed = isEnc() && EDITABLE.indexOf(s.status) >= 0, bs = brandsOf();
@@ -1162,7 +1185,7 @@ function printPre(all) {
     const baby = isBaby(l); if (!baby) nn++;
     if (all && l.brand !== prev) { rows += `<tr class="grp"><td colspan="12">BRAND: ${esc(l.brand)}</td></tr>`; prev = l.brand; }
     const mom = !baby && ls[i + 1] && isBaby(ls[i + 1]) && ls[i + 1].motherId === l.itemId;
-    const rem = (l.isExtra ? 'NEW ITEM ' : '') + esc(l.remarks) + (chgOf(l).length ? ` <b>CHANGED (was ${chgOf(l).map(k => esc(origOf(l)[k] || '—')).join(' / ')}):</b> ${esc(l.changeReason)}` : '');
+    const rem = (l.isExtra ? 'NEW ITEM ' : '') + esc(remShow(l)) + (chgOf(l).length ? ` <b>CHANGED (was ${chgOf(l).map(k => esc(origOf(l)[k] || '—')).join(' / ')}):</b> ${esc(l.changeReason)}` : '');
     const qty = baby ? `<td colspan="3" style="font-size:7.5pt">${l.babyOk === 'Y' ? '☑ present' : (l.babyOk === 'M' ? '<b>USED IN MOTHER — NOT PRESENT (0)</b>' : '☐ present &nbsp; ☐ used in mother (0)')}</td>`
       : `<td style="text-align:right">${fq(N(l.cF))}</td><td style="text-align:right">${fq(N(l.cL))}</td><td>${N(l.cL) != null ? esc(l.looseUom || '') : esc(l.looseUom || '')}</td>`;
     rows += `<tr${baby ? ' class="bb"' : (mom ? ' class="mom"' : '')}><td>${noLbl(baby, nn)}</td><td>${esc(CAT_SHORT[l.category] || l.category)}</td><td>${baby ? '↳ ' : ''}${esc(l.pn)}${pnTag(l, mom)}</td><td>${esc(l.desc)}</td><td>${esc(l.uom)}</td><td class="ser">${esc([l.serial, l.lot].filter(Boolean).join(' / '))}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}</td>${qty}<td>${rem}</td></tr>`;
@@ -1208,7 +1231,7 @@ function sheetHtml(b, kind, copy) {
     else tail = '<td class="w"></td><td></td><td></td>';
     if (baby) {
       if (kind === 'pre') tail = '<td style="text-align:center">—</td>';
-      else if (kind === 'confirm') tail = `<td colspan="3">${l.babyOk === 'Y' ? '✓ correct' : (l.babyOk === 'N' ? '<b>DIFFERENT:</b> ' + esc(l.remarks) : (l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' + esc(l.remarks) : ''))}</td>`;
+      else if (kind === 'confirm') tail = `<td colspan="3">${l.babyOk === 'Y' ? '✓ correct' : (l.babyOk === 'N' ? '<b>DIFFERENT:</b> ' + esc(remShow(l)) : (l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' + esc(remShow(l)) : ''))}</td>`;
       else tail = '<td colspan="3" style="font-size:7pt">☐ correct &nbsp; ☐ different &nbsp; ☐ not present (0)<br>actual PN / serial / lot / exp:<br>&nbsp;</td>';
     }
     rows += `<tr${baby ? ' class="bb"' : (ls[i + 1] && isBaby(ls[i + 1]) ? ' class="mom"' : '')}><td>${noLbl(baby, nn)}</td><td>${esc(l.brand)}</td><td>${CAT_SHORT[l.category] || ''}</td><td>${baby ? '↳ ' : ''}${esc(l.pn)}${pnTag(l, (ls[i + 1] && isBaby(ls[i + 1])))}</td><td>${esc(l.desc)}${baby ? '<br><small><i>baby part — do not count</i></small>' : ''}</td><td>${uomTxt(l)}</td><td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}${l.storage ? `<br><small>${esc(l.storage)}</small>` : ''}</td>${tail}</tr>`;
@@ -1272,8 +1295,8 @@ function printReport(full) {
   const sg = (r, lab) => { const x = sig(r); return `<div>${x ? `<img src="${x.image}">${esc(x.name)}<br>` : ''}${lab}${x ? ' · e-signed ' + new Date(x.signedAt).toLocaleString() : ''}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>`; };
   doPrint(`<section class="sheet"><table><thead><tr><td class="ttl" colspan="12">PHYSICAL COUNT ${full ? 'RESULTS' : 'VARIANCE REPORT'} — ${esc(s.name)}</td></tr><tr><td class="inf" colspan="12">Session ${esc(s.id)} · Count date ${esc(s.date)} · Status: <b>${esc(s.status)}</b> · Lines: ${sm.lines} · Lines with variance: ${sm.varLines} · Shortage ${peso(sm.short)} · Overage ${peso(sm.over)} · <b>Net ${peso(sm.net)}</b></td></tr>
   <tr><th>Brand</th><th>Part No.</th><th>Description</th><th class="ser">Serial / Lot</th><th>UOM</th><th>System</th><th>Counter</th><th>Checker</th><th>Final</th><th>Variance</th><th>Value</th><th>Reason / Remarks</th></tr></thead><tbody>
-  ${vl.map(l => { const c = calc(l), cn = N(l.cF) == null ? '' : fq(tot(l.cF, l.cL, N(l.packSize) || 0)), kn = N(l.kF) == null ? '' : fq(tot(l.kF, l.kL, N(l.packSize) || 0)); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td style="text-align:right">${fq(c.sys)}</td><td style="text-align:right">${cn}</td><td style="text-align:right">${kn}</td><td style="text-align:right">${c.total != null ? fq(c.total) : ''}</td><td style="text-align:right">${c.v ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td style="text-align:right">${c.v && N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)} ${esc(l.remarks)}</td></tr>`; }).join('') || '<tr><td colspan="12">No variances.</td></tr>'}</tbody></table>
-  ${babyIssues().length ? `<p style="margin-top:10px"><b>Baby part discrepancies</b></p><table><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th>System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${babyIssues().map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' : ''}${esc(l.remarks)}</td></tr>`; }).join('')}</tbody></table>` : ''}
+  ${vl.map(l => { const c = calc(l), cn = N(l.cF) == null ? '' : fq(tot(l.cF, l.cL, N(l.packSize) || 0)), kn = N(l.kF) == null ? '' : fq(tot(l.kF, l.kL, N(l.packSize) || 0)); return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td class="ser">${esc(l.serial || l.lot)}</td><td>${esc(l.uom)}</td><td style="text-align:right">${fq(c.sys)}</td><td style="text-align:right">${cn}</td><td style="text-align:right">${kn}</td><td style="text-align:right">${c.total != null ? fq(c.total) : ''}</td><td style="text-align:right">${c.v ? (c.v > 0 ? '+' : '') + fq(c.v) : ''}</td><td style="text-align:right">${c.v && N(l.unitPrice) ? peso(c.val) : ''}</td><td>${esc(l.reason)} ${esc(remShow(l))}</td></tr>`; }).join('') || '<tr><td colspan="12">No variances.</td></tr>'}</tbody></table>
+  ${condTable(true)}${babyIssues().length ? `<p style="margin-top:10px"><b>Baby part discrepancies</b></p><table><thead><tr><th>Mother PN</th><th>Baby PN (system)</th><th>Description</th><th>System serial / lot / exp</th><th>Actual found</th></tr></thead><tbody>${babyIssues().map(l => { const m = motherOf(l); return `<tr><td>${esc(m ? m.pn : '')}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot, l.expiry].filter(Boolean).join(' / '))}</td><td>${l.babyOk === 'M' ? '<b>NOT PRESENT (0)</b> ' : ''}${esc(remShow(l))}</td></tr>`; }).join('')}</tbody></table>` : ''}
   <p style="margin-top:10px"><b>Counters / checkers</b></p><table style="width:60%"><thead><tr><th>Brand</th><th>Counter</th><th>Checker</th><th>Encoded by</th></tr></thead><tbody>${asg}</tbody></table>
   <div class="sg"><div><b>Counted by</b> (Counter / Checker)<br>${Object.keys(s.assign).sort().map(b => `${esc(b)}: ${esc([s.assign[b].c, s.assign[b].k].filter(Boolean).join(' / '))} ${S.sigs.filter(g => g.brand === b && (g.role === 'counter' || g.role === 'checker')).map(g => `<img src="${g.image}" style="height:22px;vertical-align:middle">`).join('')}`).join('<br>')}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>
   <div><b>Encoded by</b> (Tabulator)<br>${[...new Set(Object.keys(s.assign).map(b => s.assign[b].e).filter(Boolean))].map(esc).join(', ')} ${S.sigs.filter(g => g.role === 'encoder').map(g => `<img src="${g.image}" style="height:22px;vertical-align:middle">`).join('')}<div style="height:34px"></div>Signature (wet ink) / Date: ____________________</div>${sg('verifier', 'Verified by')}${sg('approver', 'Approved by')}</div></section>`, `${s.name} — ${full ? 'results' : 'variance report'}`);
