@@ -677,12 +677,15 @@ function setSession(r, prev) {
 }
 function normLine(l) { ['cF','cL','kF','kL','rF','rL','sysQty','unitPrice','packSize'].forEach(k => { l[k] = (l[k] === '' || l[k] == null) ? '' : Number(l[k]); }); return l; }
 const uomTxt = l => esc(l.uom) + (N(l.packSize) > 0 ? `<br><small>loose = ${esc(l.looseUom || 'pc')} · ${l.packSize} per ${esc(l.uom || 'unit')}</small>` : '');
-const isBaby = l => !!(l.motherId && ST.S.itemIds.has(l.motherId));
+const isKid = l => !!(l.motherId && ST.S.itemIds.has(l.motherId));
+/* WATERS SYSTEM baby parts are counted like normal lines (qty + serial); other brands confirm them with the check-part dropdown */
+const COUNT_KIDS = ['WATERS SYSTEM'];
+const isBaby = l => isKid(l) && !COUNT_KIDS.includes(String(l.brand || '').toUpperCase());
 const brandsOf = () => [...new Set(ST.S.lines.filter(l => !isBaby(l)).map(l => l.brand))].sort();
 /* the lines of one brand sheet: mother items sorted by location, each followed by its baby parts (a baby may belong to another brand) */
 function linesOfBrand(b) {
-  const S = ST.S, tops = sortPrint(S.lines.filter(l => l.brand === b && !isBaby(l))), ids = new Set(tops.map(l => l.itemId).filter(Boolean)), kids = {};
-  S.lines.filter(l => isBaby(l) && ids.has(l.motherId)).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
+  const S = ST.S, tops = sortPrint(S.lines.filter(l => l.brand === b && !isKid(l))), ids = new Set(tops.map(l => l.itemId).filter(Boolean)), kids = {};
+  S.lines.filter(l => isKid(l) && ids.has(l.motherId)).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
   const out = []; tops.forEach(l => { out.push(l); (kids[l.itemId] || []).sort(byOrd).forEach(k => out.push(k)); }); return out;
 }
 const motherOf = l => ST.S.lines.find(x => x.itemId === l.motherId);
@@ -856,7 +859,7 @@ function fillEncode() {
     }
     nn++;
     const id0 = esc(l.lineId), pk = N(l.packSize) > 0, inp = (f, dis) => `<input class="q" type="number" min="0" step="any" data-l="${esc(l.lineId)}" data-f="${f}" value="${l[f] === '' ? '' : l[f]}" ${ed && !dis ? '' : 'disabled'}>`;
-    h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${ed ? `<select data-l="${id0}" data-tx="category" style="width:68px;padding:3px 2px;font-size:12px"><option value=""></option>${CATS.map(c => `<option value="${c}" ${l.category === c ? 'selected' : ''}>${CAT_SHORT[c] || c}</option>`).join('')}</select>` : (CAT_SHORT[l.category] || '')}</td><td><b>${esc(l.pn)}</b>${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}<div class="dsc">${esc(l.desc)}<span class="mut"> · ${esc(CAT_SHORT[l.category] || '')}${l.location ? ' · ' + esc(l.location) : ''}</span></div>${lotsText(l) ? `<div class="mut" style="font-size:11px;white-space:normal;max-width:200px">${esc(lotsText(l))}</div>` : ''}${ed ? `<div class="lb"><button class="small" data-lots="${id0}" title="List the lot / serial numbers and quantities of this PN">${lotsText(l) ? '✎ Lot / Serial' : 'Lot / Serial'}</button><button class="small" data-lot="${id0}" title="Add another row for a different serial / lot / expiry">+ Row</button>${(l.cF==='' && l.cL==='' && l.kF==='' && l.kL==='' && !l.isExtra) || l.isExtra ? `<button class="small" data-rmline="${id0}" title="Remove this line from the count (also switches the item off in Items)" style="color:#b3261e">✕ Remove</button>` : ''}</div>` : ''}</td><td>${esc(l.desc)}</td><td>${ed ? `<input data-l="${id0}" data-tx="uom" list="uomList" placeholder="unit" value="${esc(l.uom)}" style="width:84px"><div class="lb"><button class="small" data-lsetup="${id0}" title="Set the loose unit and how many loose pieces make one full unit">${pk ? '✎ ' + esc(l.packSize) + ' ' + esc(l.looseUom || 'pc') + ' / ' + esc(l.uom || 'unit') : '+ Loose'}</button></div>` : esc(l.uom) + (pk ? `<div class="small mut">${esc(l.packSize)} ${esc(l.looseUom || 'pc')} per ${esc(l.uom || 'unit')}</div>` : '')}${!pk && N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : ''}</td>${ed ? `<td class="ser"><input data-l="${id0}" data-tx="serial" value="${esc(l.serial)}" style="width:100px"></td><td class="lot"><input data-l="${id0}" data-tx="lot" value="${esc(l.lot)}" style="width:100px"></td><td><input type="date" data-l="${id0}" data-tx="expiry" value="${esc(l.expiry)}"></td>` : `<td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td>`}<td>${ed ? `<input data-l="${id0}" data-tx="location" value="${esc(l.location)}" style="width:110px" title="Edit here - it also updates Items">` : esc(l.location)}</td>
+    h += `<tr data-r="${esc(l.lineId)}"><td class="mut">${nn}</td><td>${ed ? `<select data-l="${id0}" data-tx="category" style="width:68px;padding:3px 2px;font-size:12px"><option value=""></option>${CATS.map(c => `<option value="${c}" ${l.category === c ? 'selected' : ''}>${CAT_SHORT[c] || c}</option>`).join('')}</select>` : (CAT_SHORT[l.category] || '')}</td><td><b>${esc(l.pn)}</b>${l.isExtra ? ' <span class="badge b-warn">extra</span>' : ''}${isKid(l) ? ' <span class="badge">&#8627; baby of ' + esc((motherOf(l) || {}).pn || '') + '</span>' : ''}<div class="dsc">${esc(l.desc)}<span class="mut"> · ${esc(CAT_SHORT[l.category] || '')}${l.location ? ' · ' + esc(l.location) : ''}</span></div>${lotsText(l) ? `<div class="mut" style="font-size:11px;white-space:normal;max-width:200px">${esc(lotsText(l))}</div>` : ''}${ed ? `<div class="lb"><button class="small" data-lots="${id0}" title="List the lot / serial numbers and quantities of this PN">${lotsText(l) ? '✎ Lot / Serial' : 'Lot / Serial'}</button><button class="small" data-lot="${id0}" title="Add another row for a different serial / lot / expiry">+ Row</button>${(l.cF==='' && l.cL==='' && l.kF==='' && l.kL==='' && !l.isExtra) || l.isExtra ? `<button class="small" data-rmline="${id0}" title="Remove this line from the count (also switches the item off in Items)" style="color:#b3261e">✕ Remove</button>` : ''}</div>` : ''}</td><td>${esc(l.desc)}</td><td>${ed ? `<input data-l="${id0}" data-tx="uom" list="uomList" placeholder="unit" value="${esc(l.uom)}" style="width:84px"><div class="lb"><button class="small" data-lsetup="${id0}" title="Set the loose unit and how many loose pieces make one full unit">${pk ? '✎ ' + esc(l.packSize) + ' ' + esc(l.looseUom || 'pc') + ' / ' + esc(l.uom || 'unit') : '+ Loose'}</button></div>` : esc(l.uom) + (pk ? `<div class="small mut">${esc(l.packSize)} ${esc(l.looseUom || 'pc')} per ${esc(l.uom || 'unit')}</div>` : '')}${!pk && N(l.cL) > 0 ? '<div class="small neg">⚠ no pack size</div>' : ''}</td>${ed ? `<td class="ser"><input data-l="${id0}" data-tx="serial" value="${esc(l.serial)}" style="width:100px"></td><td class="lot"><input data-l="${id0}" data-tx="lot" value="${esc(l.lot)}" style="width:100px"></td><td><input type="date" data-l="${id0}" data-tx="expiry" value="${esc(l.expiry)}"></td>` : `<td class="ser">${esc(l.serial)}</td><td class="lot">${esc(l.lot)}</td><td>${esc(l.expiry)}</td>`}<td>${ed ? `<input data-l="${id0}" data-tx="location" value="${esc(l.location)}" style="width:110px" title="Edit here - it also updates Items">` : esc(l.location)}</td>
     <td class="num">${inp('cF')}</td><td class="num">${inp('cL', !pk)}${midBtn(l, 'cL', pk, ed)}</td><td class="num">${inp('kF')}</td><td class="num">${inp('kL', !pk)}${midBtn(l, 'kL', pk, ed)}</td>${condCell(l, ed)}<td class="st">${stHtml(calc(l))}</td></tr>`;
   });
   $('#eBody').innerHTML = h || '<tr><td colspan="15" class="mut" style="padding:20px">No lines.</td></tr>';
@@ -1117,7 +1120,7 @@ function dupPlan(brands, itemsToo) {
   const L = ST.S.lines, isMom = new Set(L.filter(x => x.motherId).map(x => x.motherId)), plan = {del:[], merged:[], upd:{}, itemsToo};
   const blank = l => !String(l.serial || '').trim() && !String(l.lot || '').trim() && !String(l.expiry || '').trim() && String(l.remarks || '').indexOf('LOTS: ') !== 0 && !condGet(l.remarks).cond && !l.changeReason;
   const g = {};
-  L.filter(l => brands.includes(l.brand) && !isBaby(l) && !isMom.has(l.lineId) && String(l.pn || '').trim()).forEach(l => { const k = l.brand + '||' + String(l.pn).trim().toUpperCase(); (g[k] = g[k] || []).push(l); });
+  L.filter(l => brands.includes(l.brand) && !isKid(l) && !isMom.has(l.lineId) && String(l.pn || '').trim()).forEach(l => { const k = l.brand + '||' + String(l.pn).trim().toUpperCase(); (g[k] = g[k] || []).push(l); });
   Object.keys(g).forEach(k => {
     const ls = g[k]; if (ls.length < 2) return;
     const tgt = ls.find(l => !blank(l)) || ls[0], u = plan.upd[tgt.lineId] = {lineId:tgt.lineId};
@@ -1154,7 +1157,7 @@ function dupModal() {
 }
 function cmbPlan(brands) {
   const L = ST.S.lines, isMom = new Set(L.filter(x => x.motherId).map(x => x.motherId)), g = {}, groups = [];
-  L.filter(l => brands.includes(l.brand) && !isBaby(l) && !isMom.has(l.lineId) && String(l.pn || '').trim() && !condGet(l.remarks).cond && !l.changeReason).forEach(l => { const k = [l.brand, String(l.pn).trim().toUpperCase(), String(l.uom || '').toLowerCase(), String(l.location || '').trim().toUpperCase()].join('||'); (g[k] = g[k] || []).push(l); });
+  L.filter(l => brands.includes(l.brand) && !isKid(l) && !isMom.has(l.lineId) && String(l.pn || '').trim() && !condGet(l.remarks).cond && !l.changeReason).forEach(l => { const k = [l.brand, String(l.pn).trim().toUpperCase(), String(l.uom || '').toLowerCase(), String(l.location || '').trim().toUpperCase()].join('||'); (g[k] = g[k] || []).push(l); });
   Object.keys(g).forEach(k => {
     const ls = g[k].slice().sort(byOrd); if (ls.length < 2) return;
     const tgt = ls[0], rows = [], warn = [], sum = {cF:null, cL:null, kF:null, kL:null, sysQty:null}, add = (o, f, v) => { if (N(v) != null) o[f] = (o[f] || 0) + N(v); };
@@ -1286,8 +1289,8 @@ function preInput(e) {
 function fillPre() {
   const S = ST.S, ed = preOpen(), q = PRE.q.trim().toLowerCase();
   const hit = l => !q || [l.pn, l.desc, l.serial, l.lot].join(' ').toLowerCase().indexOf(q) >= 0;
-  const kids = {}; S.lines.filter(isBaby).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
-  const tops = S.lines.filter(l => l.brand === PRE.brand && !isBaby(l) && (hit(l) || (kids[l.itemId] || []).some(hit)))
+  const kids = {}; S.lines.filter(isKid).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
+  const tops = S.lines.filter(l => l.brand === PRE.brand && !isKid(l) && (hit(l) || (kids[l.itemId] || []).some(hit)))
     .sort((a, b) => (!!a.isExtra) - (!!b.isExtra) || byOrd(a, b));
   const ls = []; tops.forEach(l => { ls.push(l); (kids[l.itemId] || []).sort(byOrd).forEach(k => ls.push(k)); });
   const inp = (l, f) => ed ? `<input data-l="${esc(l.lineId)}" data-f="${f}" value="${esc(l[f])}">` : esc(l[f]);
@@ -1326,8 +1329,8 @@ function preAddModal(isNew) {
 }
 function printPre(all) {
   const S = ST.S, s = S.session, sg = (S.sigs || []).filter(x => x.role === 'logistics').pop();
-  const kd = {}; S.lines.filter(isBaby).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
-  const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || byOrd(a, b))
+  const kd = {}; S.lines.filter(isKid).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
+  const ls = []; S.lines.filter(l => !isKid(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || byOrd(a, b))
     .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort(byOrd).forEach(k => ls.push(k)); });
   let nn = 0, prev = null, rows = '';
   const brands = [...new Set(ls.map(l => l.brand))];
@@ -1366,7 +1369,7 @@ const ord = l => { const m = /-(\d{5})$/.exec(String(l.lineId)); return m ? +m[1
 const byOrd = (a, b) => ord(a) - ord(b) || String(a.lineId).localeCompare(String(b.lineId));
 const sortPrint = ls => ls.slice().sort((a, b) => (a.section === 'Expired') - (b.section === 'Expired') || byOrd(a, b));
 let BK = 0;
-const pnTag = (l, mom) => isBaby(l) ? '<br><small class="tg tb">BABY PART &#8627;</small>' : (mom ? '<br><small class="tg tm">MOTHER PN</small>' : '');
+const pnTag = (l, mom) => isKid(l) ? '<br><small class="tg tb">BABY PART &#8627;</small>' : (mom ? '<br><small class="tg tm">MOTHER PN</small>' : '');
 const noLbl = (baby, nn) => baby ? nn + '.' + (++BK) : (BK = 0, nn);
 function sheetHtml(b, kind, copy) {
   const S = ST.S, s = S.session, a = s.assign[b] || {}, ls = linesOfBrand(b), cols = kind === 'pre' ? 11 : 13, hasBaby = ls.some(isBaby);
