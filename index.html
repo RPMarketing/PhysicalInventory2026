@@ -312,7 +312,7 @@ function route(db, req) {
       if (EDITABLE.indexOf(sm.status) < 0) throw new Error('Session is locked (' + sm.status + ')');
       var allm = db.lines(d.id), byId = {}; allm.forEach(function (l) { byId[l.lineId] = l; });
       var rmSet = {}; (d.remove || []).forEach(function (id) { if (byId[id]) rmSet[id] = 1; });
-      (d.updates || []).forEach(function (up) { var t = byId[up.lineId]; if (!t || rmSet[up.lineId]) return; ['cF', 'cL', 'kF', 'kL', 'sysQty'].forEach(function (k) { if (up[k] !== undefined) t[k] = numOrBlank(up[k]); }); });
+      (d.updates || []).forEach(function (up) { var t = byId[up.lineId]; if (!t || rmSet[up.lineId]) return; ['cF', 'cL', 'kF', 'kL', 'sysQty'].forEach(function (k) { if (up[k] !== undefined) t[k] = numOrBlank(up[k]); }); if (up.remarks !== undefined) t.remarks = String(up.remarks); });
       var keepm = allm.filter(function (l) { return !rmSet[l.lineId]; });
       db.createLines(d.id, keepm);
       if (d.itemOff || d.itemQty) { var offS = {}; (d.itemOff || []).forEach(function (x) { offS[x] = 1; }); var its = db.all('Items').filter(function (i) { return offS[i.id] || (d.itemQty && d.itemQty[i.id] !== undefined); }); its.forEach(function (i) { if (offS[i.id]) i.active = 'N'; else i.sysQty = numOrBlank(d.itemQty[i.id]); }); if (its.length) db.upsert('Items', 'id', its); }
@@ -814,7 +814,7 @@ function tabEncode() {
   $('#tab').innerHTML = `<div class="row" style="margin-bottom:10px"><select id="eb">${bs.map(b => { const p = prog(b); return `<option value="${esc(b)}" ${b === S.brand ? 'selected' : ''}>${esc(b)} — ${p[0]}/${p[1]} encoded</option>`; }).join('')}</select><input id="eBy" placeholder="Encoded by — full name" title="Full name of the tabulator who encoded this brand" value="${esc((s.assign[S.brand] || {}).e || '')}" style="width:210px" ${ed ? '' : 'disabled'}>
   <input id="eq" placeholder="Search PN, description, serial, lot…" value="${esc(S.q)}" style="width:260px">
   <div class="pills" id="ef">${[['all','All'],['todo','Not encoded'],['diff','Differences']].map(f => `<button data-f="${f[0]}" class="${S.f === f[0] ? 'on' : ''}">${f[1]}</button>`).join('')}</div>
-  <span class="sp"></span>${ed && ST.S.lines.some(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)) ? '<button id="syncX" title="Add the lines found during the count to Items and link them">Add ' + ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)).length + ' extra line(s) to Items</button>' : ''}${ed ? '<button id="dupB" title="Remove empty duplicate lines and merge their counts">Merge duplicates</button><button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
+  <span class="sp"></span>${ed && ST.S.lines.some(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)) ? '<button id="syncX" title="Add the lines found during the count to Items and link them">Add ' + ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)).length + ' extra line(s) to Items</button>' : ''}${ed ? '<button id="cmbB" title="Combine several lines of the same PN (different serial / lot) into one line with a Lot / Serial list">Combine lot / serial lines</button><button id="dupB" title="Remove empty duplicate lines and merge their counts">Merge duplicates</button><button id="addX">+ Item not on list</button><button id="saveB" class="pri">Save</button>' : '<span class="mut small">View only</span>'}</div>
   ${ed ? '<p class="mut small" style="margin:0 0 8px">Type each person’s count from their own paper sheet. Enter <b>0</b> for items counted as zero — blank means “not encoded”. Press Enter to move down. <b>Loose</b> needs a pack size (set it in Items).</p>' : ''}
   <div class="tw" style="max-height:68vh"><table class="t" id="et"><thead><tr><th>#</th><th>Type</th><th>PN</th><th>Description</th><th>UOM</th><th class="ser">Serial</th><th>Lot</th><th>Exp</th><th>Location</th><th class="num" style="background:#e3ecfb">Counter<br>Full</th><th class="num" style="background:#e3ecfb">Counter<br>Loose</th><th class="num" style="background:#e8f5ec">Checker<br>Full</th><th class="num" style="background:#e8f5ec">Checker<br>Loose</th><th>Condition</th><th>State</th></tr></thead><tbody id="eBody"></tbody></table></div>`;
   $('#eb').onchange = e => { S.brand = e.target.value; $('#eBy').value = (S.session.assign[S.brand] || {}).e || ''; fillEncode(); };
@@ -824,6 +824,7 @@ function tabEncode() {
   if ($('#saveB')) $('#saveB').onclick = () => saveDirty().then(() => toast('Saved')).catch(() => {});
   if ($('#addX')) $('#addX').onclick = addExtraModal;
   if ($('#dupB')) $('#dupB').onclick = dupModal;
+  if ($('#cmbB')) $('#cmbB').onclick = cmbModal;
   if ($('#syncX')) $('#syncX').onclick = async () => { const L = ST.S.lines.filter(x => !x.itemId && !isBaby(x) && (x.pn || x.desc)); if (!confirm('Add ' + L.length + ' line(s) found during the count to Items and link them?')) return; let n = 0; try { for (const l of L) { await ensureItem(l); n++; } toast(n + ' line(s) added to Items and linked'); tabEncode(); } catch (e) { toast(n + ' added, then stopped - try again', true); } };
   fillEncode();
 }
@@ -878,22 +879,22 @@ document.addEventListener('change', e => {
   if (t.dataset.cd === 'sel') { l.remarks = condSet(r, t.value === 'Other (specify)' ? 'Other: ' : t.value); markDirty(l.lineId); const td = t.closest('td'); td.outerHTML = condCell(l, true); const nt = document.querySelector(`input[data-cd=note][data-l="${CSS.escape(l.lineId)}"]`); if (nt) nt.focus(); }
   else { l.remarks = condSet(r, 'Other: ' + t.value.trim()); markDirty(l.lineId); }
 });
-function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || ''}; }), rest}; }
-function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
-function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || '?')).join(' · '); }
+function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || '', lo:p[3] || ''}; }), rest}; }
+function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q || x.lo); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].concat(x.lo ? [x.lo] : []).join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
+function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || (x.lo ? '0' : '?')) + (x.lo ? ' +' + x.lo + ' loose' : '')).join(' · '); }
 function lotsModal(id) {
   const l = ST.S.map[id]; if (!l) return; const g = lotsGet(l.remarks), rows = g.rows.length ? g.rows.map(x => Object.assign({}, x)) : [{lot:l.lot || l.serial || '', exp:l.expiry || '', q:''}];
-  const pk = N(l.packSize) || 0, ct = N(l.cF) == null ? null : tot(l.cF, l.cL, pk);
+  const pk = N(l.packSize) || 0, ct = N(l.cF) == null ? null : tot(l.cF, l.cL, pk), showLo = pk > 0 || rows.some(x => x.lo), lsum = () => rows.reduce((a, x) => a + (Number(x.q) || 0) + (pk > 0 ? (Number(x.lo) || 0) / pk : 0), 0);
   const paint = () => { modal(`<h3 style="margin-top:0">Lot / serial numbers of ${esc(l.pn)}</h3><p class="mut" style="margin:0 0 8px">One line per PN. Type the quantity for each lot / serial (and expiry); the PN's total is the sum.${ct == null ? '' : ' Counter total now: <b>' + fq(ct) + '</b> ' + esc(l.uom) + '.'}</p>
-    <table class="t"><thead><tr><th>Lot or serial no.</th><th>Expiry</th><th>Qty</th><th></th></tr></thead><tbody>${rows.map((x, i) => `<tr><td><input data-k="lot" data-i="${i}" value="${esc(x.lot)}" style="width:170px"></td><td><input type="date" data-k="exp" data-i="${i}" value="${esc(x.exp)}"></td><td><input data-k="q" data-i="${i}" value="${esc(x.q)}" inputmode="decimal" style="width:70px"></td><td><button type="button" class="small danger" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
+    <table class="t"><thead><tr><th>Lot or serial no.</th><th>Expiry</th><th>Qty</th>${showLo ? '<th>Loose</th>' : ''}<th></th></tr></thead><tbody>${rows.map((x, i) => `<tr><td><input data-k="lot" data-i="${i}" value="${esc(x.lot)}" style="width:170px"></td><td><input type="date" data-k="exp" data-i="${i}" value="${esc(x.exp)}"></td><td><input data-k="q" data-i="${i}" value="${esc(x.q)}" inputmode="decimal" style="width:70px"></td>${showLo ? `<td><input data-k="lo" data-i="${i}" value="${esc(x.lo || '')}" inputmode="decimal" style="width:70px" placeholder="loose"></td>` : ''}<td><button type="button" class="small danger" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
     <p id="lotSum" class="mut" style="margin:8px 0"></p><div style="margin:6px 0"><label style="display:block;font-weight:400"><input type="checkbox" id="lotC" ${N(l.cF) == null ? 'checked' : ''}> Use the lots total as the <b>Counter</b> Full count</label><label style="display:block;font-weight:400"><input type="checkbox" id="lotK" ${N(l.kF) == null ? 'checked' : ''}> Use the lots total as the <b>Checker</b> Full count</label></div><div class="row" style="margin-top:8px"><button type="button" id="lotAdd" class="small">+ Add another</button><span style="flex:1"></span><button type="button" id="lotX">Cancel</button><button type="button" id="lotOK" class="primary">Save list</button></div>`, true);
-    const sum = () => { const t = rows.reduce((a, x) => a + (Number(x.q) || 0), 0); $('#lotSum').innerHTML = 'Lots total: <b>' + fq(t) + '</b>' + (ct != null ? (Math.abs(t - ct) < 1e-9 ? ' <span style="color:#157f3d">✓ matches the count</span>' : ' <span style="color:#b45309">⚠ counter total is ' + fq(ct) + '</span>') : ''); };
+    const sum = () => { const t = lsum(); $('#lotSum').innerHTML = 'Lots total: <b>' + fq(t) + '</b>' + (ct != null ? (Math.abs(t - ct) < 1e-9 ? ' <span style="color:#157f3d">✓ matches the count</span>' : ' <span style="color:#b45309">⚠ counter total is ' + fq(ct) + '</span>') : ''); };
     sum();
     document.querySelectorAll('#modal input[data-k]').forEach(i => i.oninput = () => { const v = i.value.replace(/[|]|;;|\/\//g, ''); if (v !== i.value) i.value = v; rows[+i.dataset.i][i.dataset.k] = v.trim(); sum(); });
     document.querySelectorAll('#modal button[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); paint(); });
-    $('#lotAdd').onclick = () => { rows.push({lot:'', exp:'', q:''}); paint(); };
+    $('#lotAdd').onclick = () => { rows.push({lot:'', exp:'', q:'', lo:''}); paint(); };
     $('#lotX').onclick = closeModal;
-    $('#lotOK').onclick = async () => { l.remarks = condSet(lotsSet(rows, g.rest), condGet(l.remarks).cond); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0); if (sm > 0) { if ($('#lotC').checked) l.cF = fq(sm); if ($('#lotK').checked) l.kF = fq(sm); } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lot / serial list saved'); } catch (e) {} };
+    $('#lotOK').onclick = async () => { l.remarks = condSet(lotsSet(rows, g.rest), condGet(l.remarks).cond); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0), sl = rows.reduce((a, x) => a + (Number(x.lo) || 0), 0); if (sm > 0 || sl > 0) { if ($('#lotC').checked) { l.cF = fq(sm); if (sl > 0) l.cL = fq(sl); } if ($('#lotK').checked) { l.kF = fq(sm); if (sl > 0) l.kL = fq(sl); } } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lot / serial list saved'); } catch (e) {} };
   }; paint();
 }
 async function ensureItem(l) {
@@ -1097,6 +1098,46 @@ function dupModal() {
       <div class="row" style="margin-top:12px"><span class="sp"></span><button id="dpX">Cancel</button><button id="dpGo" class="pri" ${p.del.length ? '' : 'disabled'}>Delete ${p.del.length} line(s) &amp; merge</button></div>`, true);
     $('#dpX').onclick = closeModal; $('#dpAll').onchange = draw; $('#dpIt').onchange = draw;
     $('#dpGo').onclick = async () => { try { await saveDirty(); const q = dupPlan($('#dpAll').checked ? brandsOf() : [S.brand], $('#dpIt').checked), r = await run('mergeLines', {id:S.session.id, remove:q.del, updates:q.upd, itemOff:q.itemOff, itemQty:q.itemQty}); if ($('#dpIt').checked) { const bs = await run('bootstrap', {}); ST.items = bs.items; } setSession(r, ST.S); closeModal(); renderTab(); toast(q.del.length + ' duplicate line(s) removed'); } catch (e) {} };
+  };
+  draw();
+}
+function cmbPlan(brands) {
+  const L = ST.S.lines, isMom = new Set(L.filter(x => x.motherId).map(x => x.motherId)), g = {}, groups = [];
+  L.filter(l => brands.includes(l.brand) && !isBaby(l) && !isMom.has(l.lineId) && String(l.pn || '').trim() && !condGet(l.remarks).cond && !l.changeReason).forEach(l => { const k = [l.brand, String(l.pn).trim().toUpperCase(), String(l.uom || '').toLowerCase(), String(l.location || '').trim().toUpperCase()].join('||'); (g[k] = g[k] || []).push(l); });
+  Object.keys(g).forEach(k => {
+    const ls = g[k].slice().sort(byOrd); if (ls.length < 2) return;
+    const tgt = ls[0], rows = [], warn = [], sum = {cF:null, cL:null, kF:null, kL:null, sysQty:null}, add = (o, f, v) => { if (N(v) != null) o[f] = (o[f] || 0) + N(v); };
+    ls.forEach(l => {
+      ['cF', 'cL', 'kF', 'kL', 'sysQty'].forEach(f => add(sum, f, l[f]));
+      const lg = lotsGet(l.remarks), has = lg.rows.length;
+      if (has) lg.rows.forEach(x => rows.push(Object.assign({}, x)));
+      else { const id = String(l.lot || l.serial || '').trim(), q = N(l.cF) != null ? N(l.cF) : N(l.kF), lo = N(l.cL) != null ? N(l.cL) : N(l.kL); if (id || l.expiry || (q || 0) > 0 || (lo || 0) > 0) rows.push({lot:id, exp:l.expiry || '', q:q == null ? '' : String(q), lo:lo ? String(lo) : ''}); }
+      if (N(l.cF) != null && N(l.kF) != null && N(l.cF) !== N(l.kF)) warn.push(l.lot || l.serial || l.pn);
+      if (N(l.cL) != null && N(l.kL) != null && N(l.cL) !== N(l.kL)) warn.push((l.lot || l.serial || l.pn) + ' loose');
+    });
+    const rest = lotsGet(tgt.remarks).rest;
+    groups.push({tgt, ls, rows, warn, sum, remarks: condSet(lotsSet(rows, rest), ''), upd:{lineId:tgt.lineId, cF:sum.cF == null ? '' : sum.cF, cL:sum.cL == null ? '' : sum.cL, kF:sum.kF == null ? '' : sum.kF, kL:sum.kL == null ? '' : sum.kL, sysQty:sum.sysQty == null ? '' : sum.sysQty, remarks:lotsSet(rows, rest)}});
+  });
+  return groups;
+}
+function cmbBackup(gs) {
+  const hd = ['lineId', 'brand', 'pn', 'desc', 'uom', 'serial', 'lot', 'expiry', 'location', 'sysQty', 'cF', 'cL', 'kF', 'kL', 'remarks'], q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
+  const csv = [hd.join(',')].concat(gs.flatMap(x => x.ls.map(l => hd.map(h => q(l[h])).join(',')))).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(['﻿' + csv], {type:'text/csv'})); a.download = 'backup_before_combine_' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '') + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+}
+function cmbModal() {
+  const S = ST.S, f1 = x => x == null || x === '' ? '–' : fq(x);
+  const draw = () => {
+    const all = $('#cmAll') ? $('#cmAll').checked : false, gs = cmbPlan(all ? brandsOf() : [S.brand]), nDel = gs.reduce((a, x) => a + x.ls.length - 1, 0);
+    modal(`<h2>Combine lot / serial lines</h2><p class="mut small" style="margin-top:0">Lines with the <b>same PN, UOM and location</b> but different serial / lot become <b>one line</b> with a Lot / Serial list. Counter, checker and system totals are the <b>sum</b> of the lines, so nothing is lost. A backup file of the original lines is downloaded first.</p>
+      <label><input type="checkbox" id="cmAll" ${all ? 'checked' : ''}> All brands in this session (otherwise only ${esc(S.brand)})</label>
+      ${gs.length ? `<div class="tw" style="max-height:48vh;margin-top:8px"><table class="t"><thead><tr><th>PN</th><th>Lines</th><th>Lot / serial list (qty)</th><th class="num">Counter</th><th class="num">Checker</th><th class="num">System</th></tr></thead><tbody>${gs.map(x => `<tr><td><b>${esc(x.tgt.pn)}</b><div class="small mut">${esc(x.tgt.desc)}</div></td><td>${x.ls.length} → 1</td><td class="small">${esc(lotsText({remarks:lotsSet(x.rows, '')}))}${x.warn.length ? `<div class="neg">⚠ check: ${esc(x.warn.slice(0, 4).join(', '))} (counter ≠ checker)</div>` : ''}</td><td class="num">${f1(x.sum.cF)}${x.sum.cL ? ' + ' + fq(x.sum.cL) + ' loose' : ''}</td><td class="num">${f1(x.sum.kF)}${x.sum.kL ? ' + ' + fq(x.sum.kL) + ' loose' : ''}</td><td class="num">${f1(x.sum.sysQty)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="mut">Nothing to combine.</p>'}
+      <p class="small mut">${gs.length} PN(s) · ${nDel} line(s) will be merged into the first line of each PN. Items is updated the same way (system qty added up, merged lines switched off).</p>
+      <div class="row"><span class="sp"></span><button id="cmX">Cancel</button><button id="cmGo" class="pri" ${gs.length ? '' : 'disabled'}>Download backup &amp; combine</button></div>`, true);
+    $('#cmX').onclick = closeModal; $('#cmAll').onchange = draw;
+    $('#cmGo').onclick = async () => { try { await saveDirty(); const q = cmbPlan($('#cmAll').checked ? brandsOf() : [S.brand]); if (!q.length) return closeModal(); cmbBackup(q);
+      const del = [], itemOff = [], itemQty = {}; q.forEach(x => x.ls.forEach(l => { if (l !== x.tgt) { del.push(l.lineId); if (l.itemId) itemOff.push(l.itemId); } })); q.forEach(x => { if (x.tgt.itemId) itemQty[x.tgt.itemId] = x.upd.sysQty; });
+      const r = await run('mergeLines', {id:S.session.id, remove:del, updates:q.map(x => x.upd), itemOff, itemQty}); const bs = await run('bootstrap', {}); ST.items = bs.items; setSession(r, ST.S); closeModal(); renderTab(); toast(del.length + ' line(s) combined into ' + q.length + ' PN(s)'); } catch (e) {} };
   };
   draw();
 }
