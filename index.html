@@ -683,7 +683,7 @@ const brandsOf = () => [...new Set(ST.S.lines.filter(l => !isBaby(l)).map(l => l
 function linesOfBrand(b) {
   const S = ST.S, tops = sortPrint(S.lines.filter(l => l.brand === b && !isBaby(l))), ids = new Set(tops.map(l => l.itemId).filter(Boolean)), kids = {};
   S.lines.filter(l => isBaby(l) && ids.has(l.motherId)).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
-  const out = []; tops.forEach(l => { out.push(l); (kids[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => out.push(k)); }); return out;
+  const out = []; tops.forEach(l => { out.push(l); (kids[l.itemId] || []).sort(byOrd).forEach(k => out.push(k)); }); return out;
 }
 const motherOf = l => ST.S.lines.find(x => x.itemId === l.motherId);
 const canEdit = () => isEnc() && ['Draft','Counting','Encoding','Review'].includes(ST.S.session.status);
@@ -1192,8 +1192,8 @@ function fillPre() {
   const hit = l => !q || [l.pn, l.desc, l.serial, l.lot].join(' ').toLowerCase().indexOf(q) >= 0;
   const kids = {}; S.lines.filter(isBaby).forEach(l => (kids[l.motherId] = kids[l.motherId] || []).push(l));
   const tops = S.lines.filter(l => l.brand === PRE.brand && !isBaby(l) && (hit(l) || (kids[l.itemId] || []).some(hit)))
-    .sort((a, b) => (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)));
-  const ls = []; tops.forEach(l => { ls.push(l); (kids[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
+    .sort((a, b) => (!!a.isExtra) - (!!b.isExtra) || byOrd(a, b));
+  const ls = []; tops.forEach(l => { ls.push(l); (kids[l.itemId] || []).sort(byOrd).forEach(k => ls.push(k)); });
   const inp = (l, f) => ed ? `<input data-l="${esc(l.lineId)}" data-f="${f}" value="${esc(l[f])}">` : esc(l[f]);
   $('#pBody').innerHTML = ls.map(l => { const x = !!l.isExtra, d = isoD(l.expiry), baby = isBaby(l), m = baby ? motherOf(l) : null;
     const qty = baby
@@ -1231,8 +1231,8 @@ function preAddModal(isNew) {
 function printPre(all) {
   const S = ST.S, s = S.session, sg = (S.sigs || []).filter(x => x.role === 'logistics').pop();
   const kd = {}; S.lines.filter(isBaby).forEach(l => (kd[l.motherId] = kd[l.motherId] || []).push(l));
-  const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)))
-    .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort((x, y) => String(x.pn).localeCompare(String(y.pn))).forEach(k => ls.push(k)); });
+  const ls = []; S.lines.filter(l => !isBaby(l) && (all || l.brand === PRE.brand)).sort((a, b) => a.brand.localeCompare(b.brand) || (!!a.isExtra) - (!!b.isExtra) || byOrd(a, b))
+    .forEach(l => { ls.push(l); (kd[l.itemId] || []).sort(byOrd).forEach(k => ls.push(k)); });
   let nn = 0, prev = null, rows = '';
   const brands = [...new Set(ls.map(l => l.brand))];
   ls.forEach((l, i) => {
@@ -1266,7 +1266,9 @@ $('#pvSave').onclick = () => {
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([doc], {type:'text/html'})); a.download = PV.name + '.html'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
   toast('Saved. Open the file in Chrome or Edge and press Ctrl+P (Cmd+P on Mac).');
 };
-const sortPrint = ls => ls.slice().sort((a, b) => (a.section === 'Expired') - (b.section === 'Expired') || String(a.location).localeCompare(String(b.location), undefined, {numeric:true}) || String(a.pn).localeCompare(String(b.pn)) || String(a.serial).localeCompare(String(b.serial)));
+const ord = l => { const m = /-(\d{5})$/.exec(String(l.lineId)); return m ? +m[1] : 1e9; };
+const byOrd = (a, b) => ord(a) - ord(b) || String(a.lineId).localeCompare(String(b.lineId));
+const sortPrint = ls => ls.slice().sort((a, b) => (a.section === 'Expired') - (b.section === 'Expired') || byOrd(a, b));
 let BK = 0;
 const pnTag = (l, mom) => isBaby(l) ? '<br><small class="tg tb">BABY PART &#8627;</small>' : (mom ? '<br><small class="tg tm">MOTHER PN</small>' : '');
 const noLbl = (baby, nn) => baby ? nn + '.' + (++BK) : (BK = 0, nn);
