@@ -879,20 +879,26 @@ document.addEventListener('change', e => {
   if (t.dataset.cd === 'sel') { l.remarks = condSet(r, t.value === 'Other (specify)' ? 'Other: ' : t.value); markDirty(l.lineId); const td = t.closest('td'); td.outerHTML = condCell(l, true); const nt = document.querySelector(`input[data-cd=note][data-l="${CSS.escape(l.lineId)}"]`); if (nt) nt.focus(); }
   else { l.remarks = condSet(r, 'Other: ' + t.value.trim()); markDirty(l.lineId); }
 });
-function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || '', lo:p[3] || ''}; }), rest}; }
-function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q || x.lo); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].concat(x.lo ? [x.lo] : []).join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
-function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || (x.lo ? '0' : '?')) + (x.lo ? ' +' + x.lo + ' loose' : '')).join(' · '); }
+function lotsGet(r) { r = condGet(r).rest; if (r.indexOf('LOTS: ') !== 0) return {rows:[], rest:r}; const k = r.indexOf(' // '), head = k < 0 ? r.slice(6) : r.slice(6, k), rest = k < 0 ? '' : r.slice(k + 4); return {rows: head.split(' ;; ').filter(Boolean).map(x => { const p = x.split('|'); return {lot:p[0] || '', exp:p[1] || '', q:p[2] || '', lo:p[3] || '', cd:p[4] || ''}; }), rest}; }
+function lotsSet(rows, rest) { rows = rows.filter(x => x.lot || x.exp || x.q || x.lo || x.cd); return (rows.length ? 'LOTS: ' + rows.map(x => [x.lot, x.exp, x.q].concat(x.lo || x.cd ? [x.lo || ''] : [], x.cd ? [x.cd] : []).join('|')).join(' ;; ') + (rest ? ' // ' + rest : '') : rest); }
+function lotsText(l) { const g = lotsGet(l.remarks); return g.rows.map(x => (x.lot || '—') + (x.exp ? ' (exp ' + x.exp + ')' : '') + ' ×' + (x.q || (x.lo ? '0' : '?')) + (x.lo ? ' +' + x.lo + ' loose' : '') + (x.cd ? ' [' + x.cd + ']' : '')).join(' · '); }
+function condOpts(cd, i) {
+  cd = cd || ''; const oth = cd.indexOf('Other') === 0, base = oth ? 'Other (specify)' : cd;
+  return `<select data-cdsel="${i}" style="width:150px;${cd ? 'background:#fff1dc' : ''}"><option value="">—</option>${CONDS.map(o => `<option ${base === o ? 'selected' : ''}>${o}</option>`).join('')}</select>${oth ? `<input data-cdnote="${i}" placeholder="specify…" value="${esc(cd.replace(/^Other:? ?/, ''))}" style="width:130px;margin-left:3px">` : ''}`;
+}
 function lotsModal(id) {
   const l = ST.S.map[id]; if (!l) return; const g = lotsGet(l.remarks), rows = g.rows.length ? g.rows.map(x => Object.assign({}, x)) : [{lot:l.lot || l.serial || '', exp:l.expiry || '', q:''}];
   const pk = N(l.packSize) || 0, ct = N(l.cF) == null ? null : tot(l.cF, l.cL, pk), showLo = pk > 0 || rows.some(x => x.lo), lsum = () => rows.reduce((a, x) => a + (Number(x.q) || 0) + (pk > 0 ? (Number(x.lo) || 0) / pk : 0), 0);
   const paint = () => { modal(`<h3 style="margin-top:0">Lot / serial numbers of ${esc(l.pn)}</h3><p class="mut" style="margin:0 0 8px">One line per PN. Type the quantity for each lot / serial (and expiry); the PN's total is the sum.${ct == null ? '' : ' Counter total now: <b>' + fq(ct) + '</b> ' + esc(l.uom) + '.'}</p>
-    <table class="t"><thead><tr><th>Lot or serial no.</th><th>Expiry</th><th>Qty</th>${showLo ? '<th>Loose</th>' : ''}<th></th></tr></thead><tbody>${rows.map((x, i) => `<tr><td><input data-k="lot" data-i="${i}" value="${esc(x.lot)}" style="width:170px"></td><td><input type="date" data-k="exp" data-i="${i}" value="${esc(x.exp)}"></td><td><input data-k="q" data-i="${i}" value="${esc(x.q)}" inputmode="decimal" style="width:70px"></td>${showLo ? `<td><input data-k="lo" data-i="${i}" value="${esc(x.lo || '')}" inputmode="decimal" style="width:70px" placeholder="loose"></td>` : ''}<td><button type="button" class="small danger" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
+    <table class="t"><thead><tr><th>Lot or serial no.</th><th>Expiry</th><th>Qty</th>${showLo ? '<th>Loose</th>' : ''}<th>Condition</th><th></th></tr></thead><tbody>${rows.map((x, i) => `<tr><td><input data-k="lot" data-i="${i}" value="${esc(x.lot)}" style="width:170px"></td><td><input type="date" data-k="exp" data-i="${i}" value="${esc(x.exp)}"></td><td><input data-k="q" data-i="${i}" value="${esc(x.q)}" inputmode="decimal" style="width:70px"></td>${showLo ? `<td><input data-k="lo" data-i="${i}" value="${esc(x.lo || '')}" inputmode="decimal" style="width:70px" placeholder="loose"></td>` : ''}<td style="white-space:nowrap">${condOpts(x.cd, i)}</td><td><button type="button" class="small danger" data-del="${i}">✕</button></td></tr>`).join('')}</tbody></table>
     <p id="lotSum" class="mut" style="margin:8px 0"></p><div style="margin:6px 0"><label style="display:block;font-weight:400"><input type="checkbox" id="lotC" ${N(l.cF) == null ? 'checked' : ''}> Use the lots total as the <b>Counter</b> Full count</label><label style="display:block;font-weight:400"><input type="checkbox" id="lotK" ${N(l.kF) == null ? 'checked' : ''}> Use the lots total as the <b>Checker</b> Full count</label></div><div class="row" style="margin-top:8px"><button type="button" id="lotAdd" class="small">+ Add another</button><span style="flex:1"></span><button type="button" id="lotX">Cancel</button><button type="button" id="lotOK" class="primary">Save list</button></div>`, true);
     const sum = () => { const t = lsum(); $('#lotSum').innerHTML = 'Lots total: <b>' + fq(t) + '</b>' + (ct != null ? (Math.abs(t - ct) < 1e-9 ? ' <span style="color:#157f3d">✓ matches the count</span>' : ' <span style="color:#b45309">⚠ counter total is ' + fq(ct) + '</span>') : ''); };
     sum();
     document.querySelectorAll('#modal input[data-k]').forEach(i => i.oninput = () => { const v = i.value.replace(/[|]|;;|\/\//g, ''); if (v !== i.value) i.value = v; rows[+i.dataset.i][i.dataset.k] = v.trim(); sum(); });
     document.querySelectorAll('#modal button[data-del]').forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); paint(); });
-    $('#lotAdd').onclick = () => { rows.push({lot:'', exp:'', q:'', lo:''}); paint(); };
+    document.querySelectorAll('#modal select[data-cdsel]').forEach(e => e.onchange = () => { rows[+e.dataset.cdsel].cd = e.value === 'Other (specify)' ? 'Other: ' : e.value; paint(); });
+    document.querySelectorAll('#modal input[data-cdnote]').forEach(e => e.oninput = () => { const v = e.value.replace(/[|]|;;|\/\//g, ''); rows[+e.dataset.cdnote].cd = 'Other: ' + v.trim(); });
+    $('#lotAdd').onclick = () => { rows.push({lot:'', exp:'', q:'', lo:'', cd:''}); paint(); };
     $('#lotX').onclick = closeModal;
     $('#lotOK').onclick = async () => { l.remarks = condSet(lotsSet(rows, g.rest), condGet(l.remarks).cond); const sm = rows.reduce((a, x) => a + (Number(x.q) || 0), 0), sl = rows.reduce((a, x) => a + (Number(x.lo) || 0), 0); if (sm > 0 || sl > 0) { if ($('#lotC').checked) { l.cF = fq(sm); if (sl > 0) l.cL = fq(sl); } if ($('#lotK').checked) { l.kF = fq(sm); if (sl > 0) l.kL = fq(sl); } } markDirty(l.lineId); closeModal(); try { await saveDirty(); tabEncode(); toast('Lot / serial list saved'); } catch (e) {} };
   }; paint();
@@ -1141,11 +1147,15 @@ function cmbModal() {
   };
   draw();
 }
-function condLines() { return ST.S.lines.filter(l => !isBaby(l) && condGet(l.remarks).cond); }
+function condLines() {
+  const out = [];
+  ST.S.lines.filter(l => !isBaby(l)).forEach(l => { const c = condGet(l.remarks).cond; if (c) out.push({l, cond:c, lot:[l.serial, l.lot].filter(Boolean).join(' / '), exp:l.expiry, q:''}); lotsGet(l.remarks).rows.filter(x => x.cd).forEach(x => out.push({l, cond:x.cd, lot:x.lot, exp:x.exp, q:(x.q || '') + (x.lo ? ' +' + x.lo + ' loose' : '')})); });
+  return out;
+}
 function condTable(print) {
   const c = condLines(); if (!c.length) return '';
-  const row = l => `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc([l.serial, l.lot].filter(Boolean).join(' / '))}</td><td style="white-space:nowrap">${esc(l.expiry)}</td><td>${esc(l.location)}</td><td><b>${esc(condGet(l.remarks).cond)}</b></td></tr>`;
-  const head = '<tr><th>Brand</th><th>PN</th><th>Description</th><th>Serial / lot</th><th>Expiry</th><th>Location</th><th>Condition</th></tr>';
+  const row = x => { const l = x.l; return `<tr><td>${esc(l.brand)}</td><td>${esc(l.pn)}</td><td>${esc(l.desc)}</td><td>${esc(x.lot)}</td><td style="white-space:nowrap">${esc(x.exp)}</td><td>${esc(l.location)}</td><td>${esc(x.q)}</td><td><b>${esc(x.cond)}</b></td></tr>`; };
+  const head = '<tr><th>Brand</th><th>PN</th><th>Description</th><th>Serial / lot</th><th>Expiry</th><th>Location</th><th>Qty</th><th>Condition</th></tr>';
   return print ? `<p style="margin-top:10px"><b>Items with condition remarks (${c.length})</b></p><table><thead>${head}</thead><tbody>${c.map(row).join('')}</tbody></table>`
     : `<h3>Items with condition remarks (${c.length})</h3><div class="tw" style="margin-bottom:14px"><table class="t"><thead>${head}</thead><tbody>${c.map(row).join('')}</tbody></table></div>`;
 }
